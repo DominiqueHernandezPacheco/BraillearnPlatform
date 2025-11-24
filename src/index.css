@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* Si usas Tailwind, mantén estas directivas, si no, bórralas */
+@import "tailwindcss";
+/* RESET & BASE */
+body {
+  font-family: 'Inter', sans-serif;
+  overflow: hidden; /* Para manejar el scroll custom */
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+main {
+  position: relative;
+  height: calc(100vh - 72px); /* Altura total menos el header */
+}
+
+/* SCROLL CUSTOM */
+.scroll-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: scroll;
+  scroll-snap-type: y proximity; /* Scroll suave tipo imán */
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0.3s, opacity 0.3s ease-out;
+}
+.scroll-container.active {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* SECCIONES DE PÁGINA COMPLETA */
+.full-page-section {
+  min-height: calc(100vh - 72px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  scroll-snap-align: start;
+  padding-top: 80px;
+  padding-bottom: 80px;
+  
+  /* Animación de entrada */
+  opacity: 0;
+  transform: translateY(20px);
+  filter: blur(5px);
+  transition: opacity 1.2s ease-out, transform 1.2s ease-out, filter 1.2s ease-out;
+}
+.full-page-section.visible {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+footer {
+  scroll-snap-align: start;
+}
+
+/* ANIMACIONES */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* GRÁFICAS DE DONA */
+.donut-chart-bg { stroke: #e5e7eb; }
+.donut-chart-fg {
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    animation: fadeIn 1s ease-out forwards;
+    stroke-dashoffset: 283;
+    transition: stroke-dashoffset 1.5s ease-out 0.5s;
+}
+.chart-10.visible .donut-chart-fg {
+    stroke-dasharray: 28.3 254.7;
+    stroke-dashoffset: 254.7;
+}
+.chart-70.visible .donut-chart-fg {
+    stroke-dasharray: 198.1 84.9;
+    stroke-dashoffset: 84.9;
+}
+
+/* FONDO DE REJILLA */
+.grid-background {
+    background-color: #ffffff;
+    background-image: linear-gradient(#e5e7eb 1px, transparent 1px),
+                      linear-gradient(to right, #e5e7eb 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
+/* PESTAÑAS */
+.tab-button.active {
+    border-color: #2563EB;
+    color: #2563EB;
+    background-color: #DBEAFE;
+}
+.tab-panel.active {
+    display: block;
+    animation: fadeIn 0.6s ease-out;
+}
+.tab-panel { display: none; }
+
+/* ----- MODO ALTO CONTRASTE ----- */
+
+/* 1. Fondo Negro Global */
+.high-contrast {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+.high-contrast .full-page-section {
+  background-color: #000 !important;
+  color: #FFF !important;
+}
+
+/* 2. Texto Blanco Forzado en secciones */
+.high-contrast .full-page-section .text-gray-900,
+.high-contrast .full-page-section .text-gray-800,
+.high-contrast .full-page-section .text-gray-700,
+.high-contrast .full-page-section .text-gray-600,
+.high-contrast .full-page-section .text-gray-500,
+.high-contrast .full-page-section .text-gray-400 {
+   color: #FFF !important;
+}
+
+/* 3. Elementos de Marca (Header/Footer) */
+.high-contrast header.bg-blue-600 { background-color: #4A148C !important; }
+.high-contrast footer.bg-blue-600 { background-color: #311B92 !important; }
+.high-contrast .text-blue-100, .high-contrast .text-blue-200 { color: #E0E0E0 !important; }
+
+/* 4. Botones */
+.high-contrast .bg-yellow-400 {
+  background-color: #FDD835 !important;
+  color: #000 !important;
+}
+.high-contrast .hover\:bg-yellow-500:hover {
+  background-color: #FBC02D !important;
+}
+
+/* 5. TARJETAS BLANCAS (Excepciones) */
+.high-contrast .bg-white.rounded-2xl,
+.high-contrast .bg-white.rounded-lg,
+.high-contrast a.bg-gray-50,
+.high-contrast .bg-gray-50.rounded-2xl,
+.high-contrast .grid-background .bg-white,
+.high-contrast #tabs-content.bg-white,
+.high-contrast .my-8.bg-gray-200,
+.high-contrast textarea
+{
+  background-color: #FFFFFF !important;
+  color: #111 !important;
+}
+
+/* 6. TEXTO DENTRO DE TARJETAS (Oscuro) */
+.high-contrast .bg-white.rounded-2xl *,
+.high-contrast .bg-white.rounded-lg *,
+.high-contrast a.bg-gray-50 *,
+.high-contrast .grid-background .bg-white *,
+.high-contrast #tabs-content.bg-white *
+{
+    color: #111 !important;
+}
+
+/* 7. Acentos Morados DENTRO de Tarjetas */
+.high-contrast .text-blue-600,
+.high-contrast .text-blue-500,
+.high-contrast .bg-white.rounded-2xl .text-blue-600 {
+  color: #673AB7 !important;
+}
+
+/* Excepción Tarjeta Progreso */
+.high-contrast .max-w-md.mx-auto.bg-blue-600 {
+    background-color: #FFFFFF !important;
+    border: 2px solid #000 !important;
+}
+.high-contrast .max-w-md.mx-auto.bg-blue-600 * { color: #111 !important; }
+.high-contrast .max-w-md.mx-auto.bg-blue-600 .bg-yellow-400 {
+    background-color: #673AB7 !important;
+    color: #FFF !important;
+}
