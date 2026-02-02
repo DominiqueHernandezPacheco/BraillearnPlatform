@@ -1,11 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-/* Si usas Tailwind, mantén estas directivas, si no, bórralas */
 @import "tailwindcss";
+
 /* RESET & BASE */
 body {
   font-family: 'Inter', sans-serif;
-  overflow: hidden; /* Para manejar el scroll custom */
+  overflow: hidden;
   margin: 0;
   padding: 0;
 }
@@ -16,7 +16,7 @@ html {
 
 main {
   position: relative;
-  height: calc(100vh - 72px); /* Altura total menos el header */
+  height: calc(100vh - 72px);
 }
 
 /* SCROLL CUSTOM */
@@ -27,7 +27,7 @@ main {
   right: 0;
   bottom: 0;
   overflow-y: scroll;
-  scroll-snap-type: y proximity; /* Scroll suave tipo imán */
+  scroll-snap-type: y proximity;
   visibility: hidden;
   opacity: 0;
   transition: visibility 0.3s, opacity 0.3s ease-out;
@@ -37,7 +37,7 @@ main {
   opacity: 1;
 }
 
-/* SECCIONES DE PÁGINA COMPLETA */
+/* SECCIONES */
 .full-page-section {
   min-height: calc(100vh - 72px);
   display: flex;
@@ -46,8 +46,6 @@ main {
   scroll-snap-align: start;
   padding-top: 80px;
   padding-bottom: 80px;
-  
-  /* Animación de entrada */
   opacity: 0;
   transform: translateY(20px);
   filter: blur(5px);
@@ -69,7 +67,7 @@ footer {
     to { opacity: 1; }
 }
 
-/* GRÁFICAS DE DONA */
+/* GRÁFICAS */
 .donut-chart-bg { stroke: #e5e7eb; }
 .donut-chart-fg {
     stroke-linecap: round;
@@ -79,16 +77,10 @@ footer {
     stroke-dashoffset: 283;
     transition: stroke-dashoffset 1.5s ease-out 0.5s;
 }
-.chart-10.visible .donut-chart-fg {
-    stroke-dasharray: 28.3 254.7;
-    stroke-dashoffset: 254.7;
-}
-.chart-70.visible .donut-chart-fg {
-    stroke-dasharray: 198.1 84.9;
-    stroke-dashoffset: 84.9;
-}
+.chart-10.visible .donut-chart-fg { stroke-dasharray: 28.3 254.7; stroke-dashoffset: 254.7; }
+.chart-70.visible .donut-chart-fg { stroke-dasharray: 198.1 84.9; stroke-dashoffset: 84.9; }
 
-/* FONDO DE REJILLA */
+/* UTILIDADES (Modo Normal) */
 .grid-background {
     background-color: #ffffff;
     background-image: linear-gradient(#e5e7eb 1px, transparent 1px),
@@ -96,93 +88,149 @@ footer {
     background-size: 32px 32px;
 }
 
-/* PESTAÑAS */
 .tab-button.active {
     border-color: #2563EB;
     color: #2563EB;
     background-color: #DBEAFE;
 }
-.tab-panel.active {
-    display: block;
-    animation: fadeIn 0.6s ease-out;
-}
+.tab-panel.active { display: block; animation: fadeIn 0.6s ease-out; }
 .tab-panel { display: none; }
 
-/* ----- MODO ALTO CONTRASTE ----- */
+/* =========================================
+   MODO ALTO CONTRASTE (SOLUCIÓN FINAL)
+   ========================================= */
 
-/* 1. Fondo Negro Global */
 .high-contrast {
+  --hc-bg: #000000;
+  --hc-fg: #FFFF00; /* Amarillo para texto */
+  --hc-accent: #00FFFF; /* Cian para interactivos */
+  --hc-border: #FFFFFF; /* Blanco para bordes */
+  
+  background-color: var(--hc-bg) !important;
+  color: var(--hc-fg) !important;
+}
+
+/* 1. FORZAR FONDO NEGRO (CORREGIDO) */
+/* IMPORTANTE: Eliminé 'div:not(.braille-cell)' de esta lista. */
+/* Esto evita que los contenedores transparentes se vuelvan negros y tapen el grid. */
+.high-contrast section:not(.grid-background),
+.high-contrast header,
+.high-contrast footer,
+.high-contrast main,
+.high-contrast .full-page-section:not(.grid-background),
+.high-contrast .bg-white,
+.high-contrast .bg-gray-50,
+.high-contrast .bg-gray-100,
+.high-contrast .bg-gray-200,
+.high-contrast .bg-blue-600,
+.high-contrast .bg-blue-100,
+.high-contrast .bg-yellow-400,
+.high-contrast textarea,
+.high-contrast input {
+  background-color: var(--hc-bg) !important;
+  color: var(--hc-fg) !important;
+  box-shadow: none !important;
+}
+
+/* 1.1 GRID VISIBLE SOBRE FONDO NEGRO */
+.high-contrast .grid-background {
+  background-color: var(--hc-bg) !important;
+  background-image: linear-gradient(#555555 2px, transparent 2px),
+                    linear-gradient(to right, #555555 2px, transparent 2px) !important;
+  background-size: 32px 32px !important;
+  color: var(--hc-fg) !important;
+  box-shadow: none !important;
+}
+
+/* 2. BORDES PARA DEFINICIÓN */
+.high-contrast button,
+.high-contrast a[class*="bg-"],
+.high-contrast .rounded-2xl,
+.high-contrast .rounded-3xl,
+.high-contrast .rounded-lg, /* Para las tarjetas de Futuro */
+.high-contrast textarea,
+.high-contrast header,
+.high-contrast footer {
+  border: 2px solid var(--hc-border) !important;
+}
+
+.high-contrast header { border-top: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+.high-contrast footer { border-bottom: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+
+/* 3. TEXTOS Y ENLACES */
+.high-contrast h1, .high-contrast h2, .high-contrast h3, .high-contrast h4, .high-contrast h5,
+.high-contrast p, .high-contrast span, .high-contrast li,
+.high-contrast .text-gray-900,
+.high-contrast .text-gray-800,
+.high-contrast .text-gray-700,
+.high-contrast .text-gray-600,
+.high-contrast .text-blue-600 {
+  color: var(--hc-fg) !important;
+}
+
+.high-contrast a, 
+.high-contrast button {
+  color: var(--hc-fg) !important;
+}
+.high-contrast a:hover,
+.high-contrast button:hover {
+  color: var(--hc-accent) !important;
+  border-color: var(--hc-accent) !important;
+}
+
+/* BOTONES ACTIVOS (SIMULADOR) */
+.high-contrast button[aria-pressed="true"] {
+  background-color: var(--hc-accent) !important;
+  color: #000000 !important;
+  font-weight: bold !important;
+  border-color: var(--hc-accent) !important;
+}
+
+/* 4. CELDAS BRAILLE */
+.high-contrast .braille-cell {
   background-color: #000000 !important;
-  color: #FFFFFF !important;
+  border: 2px solid #FFFFFF !important;
 }
 
-.high-contrast .full-page-section {
-  background-color: #000 !important;
-  color: #FFF !important;
+.high-contrast .braille-cell circle[fill="currentColor"],
+.high-contrast .braille-cell circle[class*="fill-gray-900"] {
+  fill: #FFFF00 !important;
+  stroke: none !important;
 }
 
-/* 2. Texto Blanco Forzado en secciones */
-.high-contrast .full-page-section .text-gray-900,
-.high-contrast .full-page-section .text-gray-800,
-.high-contrast .full-page-section .text-gray-700,
-.high-contrast .full-page-section .text-gray-600,
-.high-contrast .full-page-section .text-gray-500,
-.high-contrast .full-page-section .text-gray-400 {
-   color: #FFF !important;
+.high-contrast .braille-cell circle[fill="lightgray"],
+.high-contrast .braille-cell circle[class*="fill-gray-200"] {
+  fill: #333333 !important;
 }
 
-/* 3. Elementos de Marca (Header/Footer) */
-.high-contrast header.bg-blue-600 { background-color: #4A148C !important; }
-.high-contrast footer.bg-blue-600 { background-color: #311B92 !important; }
-.high-contrast .text-blue-100, .high-contrast .text-blue-200 { color: #E0E0E0 !important; }
+/* 5. ICONOS Y GRÁFICAS */
+.high-contrast svg { color: var(--hc-accent) !important; }
+.high-contrast .text-yellow-400 { color: #FFFF00 !important; }
+.high-contrast .donut-chart-bg { stroke: #333 !important; }
+.high-contrast .donut-chart-fg { color: var(--hc-accent) !important; }
 
-/* 4. Botones */
-.high-contrast .bg-yellow-400 {
-  background-color: #FDD835 !important;
-  color: #000 !important;
-}
-.high-contrast .hover\:bg-yellow-500:hover {
-  background-color: #FBC02D !important;
-}
-
-/* 5. TARJETAS BLANCAS (Excepciones) */
-.high-contrast .bg-white.rounded-2xl,
-.high-contrast .bg-white.rounded-lg,
-.high-contrast a.bg-gray-50,
-.high-contrast .bg-gray-50.rounded-2xl,
-.high-contrast .grid-background .bg-white,
-.high-contrast #tabs-content.bg-white,
-.high-contrast .my-8.bg-gray-200,
-.high-contrast textarea
-{
-  background-color: #FFFFFF !important;
-  color: #111 !important;
+/* . FONDOS DE ICONOS (CÍRCULOS) */
+/* Les damos un borde Cian y fondo negro para que resalten estéticamente */
+.high-contrast .rounded-full.bg-blue-100,
+.high-contrast .rounded-full.bg-purple-100,
+.high-contrast .rounded-full.bg-green-100,
+.high-contrast .rounded-full.bg-yellow-100,
+.high-contrast .rounded-full.bg-red-100,
+.high-contrast .rounded-full.bg-white {
+    background-color: #000000 !important;
+    border: 2px solid var(--hc-accent) !important;
+    color: var(--hc-accent) !important;
 }
 
-/* 6. TEXTO DENTRO DE TARJETAS (Oscuro) */
-.high-contrast .bg-white.rounded-2xl *,
-.high-contrast .bg-white.rounded-lg *,
-.high-contrast a.bg-gray-50 *,
-.high-contrast .grid-background .bg-white *,
-.high-contrast #tabs-content.bg-white *
-{
-    color: #111 !important;
-}
+/* 7. ICONOS GENERALES */
+.high-contrast svg { color: var(--hc-accent) !important; }
+.high-contrast .text-yellow-400 { color: #FFFF00 !important; }
+.high-contrast .donut-chart-bg { stroke: #333 !important; }
+.high-contrast .donut-chart-fg { color: var(--hc-accent) !important; }
 
-/* 7. Acentos Morados DENTRO de Tarjetas */
-.high-contrast .text-blue-600,
-.high-contrast .text-blue-500,
-.high-contrast .bg-white.rounded-2xl .text-blue-600 {
-  color: #673AB7 !important;
-}
 
-/* Excepción Tarjeta Progreso */
-.high-contrast .max-w-md.mx-auto.bg-blue-600 {
-    background-color: #FFFFFF !important;
-    border: 2px solid #000 !important;
-}
-.high-contrast .max-w-md.mx-auto.bg-blue-600 * { color: #111 !important; }
-.high-contrast .max-w-md.mx-auto.bg-blue-600 .bg-yellow-400 {
-    background-color: #673AB7 !important;
-    color: #FFF !important;
+
+/* Ocultar barra en toda la app */
+::-webkit-scrollbar {
+    display: none;
 }

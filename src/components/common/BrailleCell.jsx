@@ -18,8 +18,9 @@ const BrailleCell = ({ dots, char, onClick, showChar = false, className = "", ro
 
   const commonProps = isInteractive ? { role, tabIndex: 0, onClick, onKeyDown: handleKeyDown, "aria-label": getAriaLabel() } : { role: "img", "aria-label": getAriaLabel() };
 
+  // Agregamos la clase 'braille-cell' al inicio para poder seleccionarla en CSS
   return (
-    <div {...commonProps} className={`relative border border-gray-300 rounded bg-gray-50 flex justify-center items-center ${isInteractive ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white' : ''} ${className}`}>
+    <div {...commonProps} className={`braille-cell relative border border-gray-300 rounded bg-gray-50 flex justify-center items-center ${isInteractive ? 'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white' : ''} ${className}`}>
       <svg width="24" height="36" viewBox="0 0 24 36" aria-hidden="true" className="shrink-0">
         {[0, 1, 2, 3, 4, 5].map((index) => {
           const col = index < 3 ? 0 : 1;

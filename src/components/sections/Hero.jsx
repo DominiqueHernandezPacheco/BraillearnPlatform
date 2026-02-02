@@ -3,13 +3,8 @@ import useIsVisible from '../../hooks/useIsVisible';
 import { braillePatterns } from '../../constants/braillePatterns';
 import BrailleCell from '../common/BrailleCell';
 
-const HeroImagePlaceholder = () => (
-  <div className="relative w-full max-w-lg h-72 mx-auto mt-8 md:mt-0">
-    <div className="w-full h-full bg-gray-200 rounded-xl flex items-center justify-center" role="img" aria-label="Ilustración de bienvenida">
-      <p className="text-gray-500">Aqui va una ilustración, cual? idk</p>
-    </div>
-  </div>
-);
+// 1. Importa tu imagen (Asegúrate de que el nombre coincida con tu archivo)
+import heroImage from '../../assets/images/HomeIlustration.png'; 
 
 const Hero = () => {
   const ref = useRef(null);
@@ -28,15 +23,25 @@ const Hero = () => {
             </div>
           </h1>
           <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-md">
-            ¡Hola! Te damos la bienvenida a tu punto de partida en el mundo Braille.
+            ¡Hola! Te damos la bienvenida a tu punto de partida en el mundo Braille. Aquí encontrarás los primeros pasos esenciales: aprende el alfabeto, ponlo en práctica con ejercicios divertidos y explora sin necesidad de experiencia previa. ¡Solo ganas de descubrir!
           </p>
           <a href="#cursos" className="px-8 py-3 bg-yellow-400 text-gray-900 font-bold rounded-lg hover:bg-yellow-500 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
             Empieza a aprender
           </a>
         </div>
+        
+        {/* 2. IMAGEN PLANA (SIN RECUADRO NI SOMBRA) */}
         <div className="md:w-1/2 flex justify-center md:justify-end">
-          <HeroImagePlaceholder />
+          <div className="relative w-full max-w-lg mx-auto mt-8 md:mt-0">
+             {/* Eliminadas las clases 'shadow-xl' y 'rounded-xl' para quitar el efecto de caja */}
+             <img 
+               src={heroImage} 
+               alt="Ilustración de bienvenida aprendiendo Braille" 
+               className="w-full h-auto object-contain hover:scale-105 transition-transform duration-500"
+             />
+          </div>
         </div>
+
       </div>
     </section>
   );

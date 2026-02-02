@@ -18,8 +18,9 @@ const useSimulatorLogic = () => {
   // Procesamiento de datos
   const brailleCells = textToBrailleCells(inputText);
   
-  // Paginación
+  // Paginación (Celdas actuales)
   const currentCells = brailleCells.slice(currentIndex, currentIndex + DISPLAY_SIZE);
+  // Rellenar con espacios si falta para completar la fila
   while (currentCells.length < DISPLAY_SIZE) {
     currentCells.push({ char: ' ', dots: braillePatterns['blank'] });
   }
@@ -40,22 +41,32 @@ const useSimulatorLogic = () => {
 
   const goToNext = () => {
     playNav('C4');
-    const newIndex = Math.min(currentIndex + DISPLAY_SIZE, Math.max(0, brailleCells.length - DISPLAY_SIZE));
-    setCurrentIndex(newIndex);
-    setLiveRegionText(`Mostrando caracteres ${newIndex + 1} a ${Math.min(newIndex + DISPLAY_SIZE, brailleCells.length)}`);
+    // Avanzamos por bloque exacto de 12
+    const newIndex = currentIndex + DISPLAY_SIZE;
+    if (newIndex < brailleCells.length) {
+        setCurrentIndex(newIndex);
+        setLiveRegionText(`Página siguiente`);
+    }
   };
 
   const goToPrev = () => {
     playNav('G3');
+    // Retrocedemos por bloque exacto de 12
     const newIndex = Math.max(0, currentIndex - DISPLAY_SIZE);
     setCurrentIndex(newIndex);
-    setLiveRegionText(`Mostrando caracteres ${newIndex + 1} a ${newIndex + DISPLAY_SIZE}`);
+    setLiveRegionText(`Página anterior`);
   };
 
-  // Calculamos estados derivados para la UI
-  const isPrevDisabled = currentIndex === 0;
-  const isNextDisabled = currentIndex + DISPLAY_SIZE >= brailleCells.length;
-  const paginationLabel = `${Math.min(currentIndex + 1, brailleCells.length)} - ${Math.min(currentIndex + DISPLAY_SIZE, brailleCells.length)} / ${brailleCells.length}`;
+  // --- AQUÍ ESTÁ EL CAMBIO CLAVE PARA EL PAGINADO ---
+  const totalPages = Math.ceil(brailleCells.length / DISPLAY_SIZE) || 1;
+  const currentPage = Math.floor(currentIndex / DISPLAY_SIZE) + 1;
+  
+  // Etiqueta limpia: "Página 1 de 3"
+  const paginationLabel = `Página ${currentPage} de ${totalPages}`;
+
+  // Lógica de deshabilitar botones
+  const isPrevDisabled = currentPage === 1;
+  const isNextDisabled = currentPage === totalPages;
 
   return {
     // Estados
@@ -66,7 +77,7 @@ const useSimulatorLogic = () => {
     liveRegionText,
     isPrevDisabled,
     isNextDisabled,
-    paginationLabel,
+    paginationLabel, // <--- Ahora devuelve el string bonito
     
     // Setters simples
     setAudioMode,

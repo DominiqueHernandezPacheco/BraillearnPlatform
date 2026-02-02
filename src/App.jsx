@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import './index.css'; // Asegúrate de que el nombre coincida con el archivo CSS que creaste
-
+import './index.css';
 // Layout
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
-
 // Secciones
 import Hero from './components/sections/Hero';
 import Quote from './components/sections/Quote';
@@ -16,9 +14,9 @@ import SolutionSection from './components/sections/Solution';
 import VisionSection from './components/sections/Vision';
 import FutureWorkSection from './components/sections/FutureWork';
 import TechnicalDetailsSection from './components/sections/TechnicalDetails';
-
 // Features
 import SimulatorSection from './components/features/Simulator/SimulatorSection';
+import CourseSection from './components/features/Courses/CourseSection';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('plataforma');
@@ -33,25 +31,42 @@ export default function App() {
   }, []);
 
   const handleNav = (page, anchor) => {
+    window.speechSynthesis.cancel();
     setCurrentPage(page);
     setTimeout(() => {
       const element = document.getElementById(anchor);
       if (element) element.scrollIntoView({ behavior: 'smooth' });
-    }, 0);
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
   };
 
   return (
     <div className={`font-sans bg-gray-50 ${highContrast ? 'high-contrast' : ''}`}>
-      <Header handleNav={handleNav} highContrast={highContrast} setHighContrast={setHighContrast} />
+      {/* HEADER: Ya no recibe props de mute, se conecta solo */}
+      <Header 
+        handleNav={handleNav} 
+        highContrast={highContrast} 
+        setHighContrast={setHighContrast} 
+      />
+      
       <main>
         {currentPage === 'plataforma' && (
           <div className="scroll-container active">
             <Hero />
             <Quote />
-            <LearningHub />
+            <LearningHub onNavigateToCourses={() => handleNav('cursos', 'cursos-top')} />
             <Footer />
           </div>
         )}
+        
+        {currentPage === 'cursos' && (
+          <div className="scroll-container active">
+             {/* COURSE: Ya no recibe props de mute, se conecta solo */}
+             <CourseSection highContrast={highContrast} />
+             <Footer />
+          </div>
+        )}
+
         {currentPage === 'proyecto' && (
           <div className="scroll-container active">
             <TeamSection />
@@ -64,9 +79,10 @@ export default function App() {
             <Footer />
           </div>
         )}
+
         {currentPage === 'simulador' && (
           <div className="scroll-container active">
-            <SimulatorSection />
+            <SimulatorSection /> 
             <Footer />
           </div>
         )}

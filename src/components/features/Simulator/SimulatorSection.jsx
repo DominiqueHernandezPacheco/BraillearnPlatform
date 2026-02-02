@@ -3,6 +3,7 @@ import useIsVisible from '../../../hooks/useIsVisible';
 import BrailleCell from '../../common/BrailleCell';
 import { ChevronLeft, ChevronRight } from '../../common/Icons';
 import useSimulatorLogic from './useSimulatorLogic';
+import { useAudio } from '../../../context/AudioContext';
 
 const SimulatorSection = () => {
   const ref = useRef(null);
