@@ -1,16 +1,27 @@
-# React + Vite
+# 🌟 Braillearn Platform 
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+*Silver Medalist at Infomatrix 2025 Regional* 🥈
 
-Currently, two official plugins are available:
+Braillearn is a comprehensive, multi-channel system designed to promote digital autonomy and literacy for visually impaired individuals. This repository contains the frontend application, built as a hybrid web and desktop platform to break economic and pedagogical barriers in inclusive education.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Key Features
+* **Interactive Simulator:** Real-time Braille translation and tactile feedback simulation.
+* **Gamified Courses:** Modules to learn the Braille alphabet (vowels, numbers, words) with a memory game and interactive drills.
+* **Accessibility First:** High-contrast mode and integrated Text-to-Speech (TTS) using the Web Speech API, along with audio cues powered by Tone.js.
+* **Cross-Platform:** Runs on the web or as a desktop application via Electron.
 
-## React Compiler
+## 🛠️ Tech Stack
+* **Frontend:** React 19, Vite, Tailwind CSS 4
+* **Audio & Accessibility:** Tone.js, Web Speech API
+* **Desktop Environment:** Electron
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+## 🚀 Getting Started
 
-## Expanding the ESLint configuration
+### Prerequisites
+Make sure you have Node.js installed on your machine.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Installation
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
