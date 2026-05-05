@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get last successful SHA
+        id: last_success
+        run: |
+          LAST=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/deployments?environment=github-pages&per_page=1" \
+            | jq -r '.[0].sha // ""')
+          echo "sha=$LAST" >> $GITHUB_OUTPUT
+
+      - name: Install & Build
+        id: build
+        run: |
+          npm install
+          npm run build
+        continue-on-error: true
+
+      - name: Fallback to last successful build
+        if: steps.build.outcome == 'failure' && steps.last_success.outputs.sha != ''
+        run: |
+          git checkout ${{ steps.last_success.outputs.sha }}
+          npm install
+          npm run build
+
+      - name: Fail if no fallback available
+        if: steps.build.outcome == 'failure' && steps.last_success.outputs.sha == ''
+        run: exit 1
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
