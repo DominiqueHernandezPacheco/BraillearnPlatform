@@ -234,3 +234,135 @@ footer {
 ::-webkit-scrollbar {
     display: none;
 }
+
+.high-contrast .tab-button.active {
+  background-color: var(--hc-accent) !important; /* Fondo relleno del color fuerte */
+  color: var(--hc-bg) !important;                /* Texto negro (o el color de fondo) */
+  font-weight: 900 !important;                   /* Letra extra gruesa */
+  border-bottom: 4px solid var(--hc-border) !important;
+}
+
+.high-contrast .tab-button:not(.active) {
+  color: var(--hc-fg) !important;                /* Texto normal */
+  border-bottom: 2px solid transparent !important;
+}
+
+/* --- FIX 3: SIMULADOR Y NAVEGACIÓN POR TECLADO --- */
+
+/* Cuando haces TAB o CLIC en una celda Braille */
+.high-contrast .braille-cell:focus,
+.high-contrast .braille-cell:active {
+  outline: 4px solid var(--hc-accent) !important; /* Borde exterior brillante */
+  outline-offset: 2px;
+  background-color: #090909 !important; /* Fondo gris para diferenciar del negro */
+  cursor: pointer;
+}
+
+/* Para los botones de modo (Rítmico/Voz) y velocidad que estén activos */
+.high-contrast button[aria-pressed="true"] {
+  background-color: var(--hc-accent) !important;
+  color: var(--hc-bg) !important;
+  font-weight: bold;
+  border: 2px solid var(--hc-border) !important;
+}
+
+/* Asegurar que el foco del teclado (TAB) se vea en CUALQUIER elemento */
+.high-contrast *:focus-visible {
+  outline: 3px solid var(--hc-accent) !important;
+  outline-offset: 2px;
+}
+
+.high-contrast .bg-green-100,
+.high-contrast .bg-purple-100,
+.high-contrast .bg-red-100 {
+    background-color: var(--hc-bg) !important;
+    color: var(--hc-fg) !important;
+    box-shadow: none !important;
+}
+
+/* Esto hace que los iconos de Software (Azul) y Hardware (Verde) se vean iguales:
+   Fondo oscuro y borde de color acento. */
+.high-contrast .rounded-lg.bg-blue-100,
+.high-contrast .rounded-lg.bg-green-100,
+.high-contrast .rounded-lg.bg-purple-100,
+.high-contrast .rounded-lg.bg-red-100 {
+    background-color: #222222 !important;  /* Gris muy oscuro */
+    border: 3px solid var(--hc-accent) !important; /* Borde Cian/Amarillo */
+    color: var(--hc-accent) !important;    /* Icono del mismo color */
+}
+
+
+.high-contrast .bg-gray-800 {
+    background-color: #000000 !important; /* Un gris muy oscuro (Casi negro) */
+    border-color: var(--hc-border) !important; /* Aseguramos que el borde sea blanco */
+    color: var(--hc-fg) !important; /* Texto amarillo/blanco */
+}
+
+
+/* --- FIX 5: BOTÓN VERIFICAR Y PUNTOS INTERACTIVOS --- */
+
+/* 1. Arreglar el Botón "Verificar" (Quitamos el fondo verde) */
+/* Lo forzamos a ser Negro con Borde y Texto del color de acento (Cian/Amarillo) */
+.high-contrast .bg-green-500 {
+    background-color: var(--hc-bg) !important; 
+    border: 3px solid var(--hc-accent) !important;
+    color: var(--hc-accent) !important;
+    font-weight: 800 !important;
+}
+
+/* Efecto Hover para el botón (Relleno de color al pasar el mouse) */
+.high-contrast .bg-green-500:hover {
+    background-color: var(--hc-accent) !important;
+    color: var(--hc-bg) !important;
+}
+
+/* 2. Arreglar los Puntos de la Celda Interactiva */
+/* El problema era que los puntos activos usan "fill-gray-900" (casi negro) */
+
+/* Puntos ACTIVOS -> Los pintamos del color NEÓN (Cian) */
+.high-contrast circle[class*="fill-gray-900"] {
+    fill: var(--hc-accent) !important;
+    stroke: none !important;
+}
+
+/* Puntos INACTIVOS -> Los pintamos Gris Oscuro con un borde fino */
+/* Para que se note que hay un hueco ahí, pero no brille */
+.high-contrast circle[class*="fill-gray-200"] {
+    fill: #222222 !important; 
+    stroke: var(--hc-border) !important;
+    stroke-width: 2px;
+}
+
+/* --- FIX 5: BOTÓN VERIFICAR Y PUNTOS INTERACTIVOS --- */
+
+/* 1. Arreglar el Botón "Verificar" (Quitamos el fondo verde) */
+/* Lo forzamos a ser Negro con Borde y Texto del color de acento (Cian/Amarillo) */
+.high-contrast .bg-green-500 {
+    background-color: var(--hc-bg) !important; 
+    border: 3px solid var(--hc-accent) !important;
+    color: var(--hc-accent) !important;
+    font-weight: 800 !important;
+}
+
+/* Efecto Hover para el botón (Relleno de color al pasar el mouse) */
+.high-contrast .bg-green-500:hover {
+    background-color: var(--hc-accent) !important;
+    color: var(--hc-bg) !important;
+}
+
+/* 2. Arreglar los Puntos de la Celda Interactiva */
+/* El problema era que los puntos activos usan "fill-gray-900" (casi negro) */
+
+/* Puntos ACTIVOS -> Los pintamos del color NEÓN (Cian) */
+.high-contrast circle[class*="fill-gray-900"] {
+    fill: var(--hc-accent) !important;
+    stroke: none !important;
+}
+
+/* Puntos INACTIVOS -> Los pintamos Gris Oscuro con un borde fino */
+/* Para que se note que hay un hueco ahí, pero no brille */
+.high-contrast circle[class*="fill-gray-200"] {
+    fill: #222222 !important; 
+    stroke: var(--hc-border) !important;
+    stroke-width: 2px;
+}

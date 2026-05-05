@@ -5,19 +5,19 @@ const InteractiveBrailleCell = ({ dots, onClick, size = "huge" }) => {
     const dotRadius = 10;
 
     return (
-        <div 
+        <div
             className={`relative bg-white border-2 border-gray-300 rounded-xl shadow-sm flex items-center justify-center ${widthClass}`}
             role="group"
-            aria-label="Celda Braille interactiva. Usa Tab para navegar entre los puntos y Enter para activarlos."
+            aria-label="Celda Braille interactiva. Usa Tab para navegar entre los puntos y Espacio o Enter para activarlos o desactivarlos."
         >
             <svg viewBox="0 0 60 90" className="w-full h-full p-2">
                 {[0, 1, 2, 3, 4, 5].map((i) => {
                     const col = i < 3 ? 15 : 45;
                     const row = 15 + (i % 3) * 30;
                     return (
-                        <circle 
-                            key={i} 
-                            cx={col} cy={row} r={dotRadius} 
+                        <circle
+                            key={i}
+                            cx={col} cy={row} r={dotRadius}
                             role="button"
                             tabIndex={0}
                             aria-label={`Punto ${i + 1}, ${dots[i] ? "activado" : "desactivado"}`}
@@ -28,8 +28,10 @@ const InteractiveBrailleCell = ({ dots, onClick, size = "huge" }) => {
                                 onClick(i);
                             }}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
+                                // Espacio Y Enter activan/desactivan el punto
+                                if (e.key === ' ' || e.key === 'Enter') {
                                     e.preventDefault();
+                                    e.stopPropagation();
                                     onClick(i);
                                 }
                             }}

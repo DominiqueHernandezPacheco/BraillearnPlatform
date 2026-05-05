@@ -1,4 +1,5 @@
 // src/utils/courseGenerator.js
+import { shuffleArray } from './arrayHelpers';
 
 export const generateRandomExercises = () => {
     const vowels = ['a', 'e', 'i', 'o', 'u'];
@@ -26,14 +27,14 @@ export const generateRandomExercises = () => {
                 targetChar: target 
             });
         } else if (type === 'quiz') {
-            const options = vowels.sort(() => 0.5 - Math.random()).slice(0, 3);
+            const options = shuffleArray(vowels).slice(0, 3);
             if (!options.includes(target)) options[0] = target;
-            exercises.push({ 
-                id: `ex-${i}`, type: 'quiz', 
-                title: `Reto ${i+2}: Identificación`, 
-                question: "¿Qué letra representa este patrón de puntos?", 
+            exercises.push({
+                id: `ex-${i}`, type: 'quiz',
+                title: `Reto ${i+2}: Identificación`,
+                question: "¿Qué letra representa este patrón de puntos?",
                 targetChar: target,
-                options: options.sort(() => 0.5 - Math.random())
+                options: shuffleArray(options)
             });
         } else if (type === 'true_false') {
             const isCorrect = Math.random() > 0.5;

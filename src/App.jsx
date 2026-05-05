@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './index.css';
 // Layout
 import Header from './components/layout/Header';
@@ -17,18 +17,11 @@ import TechnicalDetailsSection from './components/sections/TechnicalDetails';
 // Features
 import SimulatorSection from './components/features/Simulator/SimulatorSection';
 import CourseSection from './components/features/Courses/CourseSection';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('plataforma');
   const [highContrast, setHighContrast] = useState(false);
-
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js";
-    script.async = true;
-    script.id = "tone-script";
-    if (!document.getElementById('tone-script')) document.body.appendChild(script);
-  }, []);
 
   const handleNav = (page, anchor) => {
     window.speechSynthesis.cancel();
@@ -55,15 +48,15 @@ export default function App() {
             <Hero />
             <Quote />
             <LearningHub onNavigateToCourses={() => handleNav('cursos', 'cursos-top')} />
-            <Footer />
+            
           </div>
         )}
         
         {currentPage === 'cursos' && (
           <div className="scroll-container active">
-             {/* COURSE: Ya no recibe props de mute, se conecta solo */}
-             <CourseSection highContrast={highContrast} />
-             <Footer />
+            <ErrorBoundary>
+              <CourseSection highContrast={highContrast} />
+            </ErrorBoundary>
           </div>
         )}
 
@@ -76,14 +69,14 @@ export default function App() {
             <VisionSection />
             <FutureWorkSection />
             <TechnicalDetailsSection />
-            <Footer />
+          
           </div>
         )}
 
         {currentPage === 'simulador' && (
           <div className="scroll-container active">
             <SimulatorSection /> 
-            <Footer />
+            
           </div>
         )}
       </main>

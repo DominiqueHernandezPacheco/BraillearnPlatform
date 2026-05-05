@@ -2,6 +2,7 @@ import { useState } from 'react';
 import useBrailleSound from '../../../hooks/useBrailleSound';
 import { braillePatterns } from '../../../constants/braillePatterns';
 import { textToBrailleCells } from '../../../utils/textHelpers';
+import { NOTES } from '../../../constants/soundConfig';
 
 const useSimulatorLogic = () => {
   const [inputText, setInputText] = useState("Hola mundo");
@@ -18,12 +19,13 @@ const useSimulatorLogic = () => {
   // Procesamiento de datos
   const brailleCells = textToBrailleCells(inputText);
   
-  // Paginación (Celdas actuales)
-  const currentCells = brailleCells.slice(currentIndex, currentIndex + DISPLAY_SIZE);
-  // Rellenar con espacios si falta para completar la fila
-  while (currentCells.length < DISPLAY_SIZE) {
-    currentCells.push({ char: ' ', dots: braillePatterns['blank'] });
-  }
+  // Paginación: obtenemos el bloque actual y rellenamos con espacios vacíos
+  // sin mutar el array original (Array.from crea un nuevo array inmutable).
+  const pageSlice = brailleCells.slice(currentIndex, currentIndex + DISPLAY_SIZE);
+  const currentCells = Array.from(
+    { length: DISPLAY_SIZE },
+    (_, i) => pageSlice[i] ?? { char: ' ', dots: braillePatterns['blank'] }
+  );
 
   // Acciones
   const handleInputChange = (e) => {
@@ -40,7 +42,7 @@ const useSimulatorLogic = () => {
   };
 
   const goToNext = () => {
-    playNav('C4');
+    playNav(NOTES.NAV_NEXT);
     // Avanzamos por bloque exacto de 12
     const newIndex = currentIndex + DISPLAY_SIZE;
     if (newIndex < brailleCells.length) {
@@ -50,7 +52,7 @@ const useSimulatorLogic = () => {
   };
 
   const goToPrev = () => {
-    playNav('G3');
+    playNav(NOTES.NAV_PREV);
     // Retrocedemos por bloque exacto de 12
     const newIndex = Math.max(0, currentIndex - DISPLAY_SIZE);
     setCurrentIndex(newIndex);
