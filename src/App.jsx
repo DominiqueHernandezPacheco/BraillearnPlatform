@@ -18,10 +18,17 @@ import TechnicalDetailsSection from './components/sections/TechnicalDetails';
 import SimulatorSection from './components/features/Simulator/SimulatorSection';
 import CourseSection from './components/features/Courses/CourseSection';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import AccessibilityPanel from './components/features/AccessibilityPanel/AccessibilityPanel';
+// Contexto de accesibilidad
+import { useAccessibility } from './context/AccessibilityContext';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('plataforma');
-  const [highContrast, setHighContrast] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+
+  // highContrast viene del contexto — ya no es estado local.
+  // Header y CourseSection lo leen desde aquí para no romper su interfaz actual.
+  const { highContrast } = useAccessibility();
 
   const handleNav = (page, anchor) => {
     window.speechSynthesis.cancel();
@@ -35,23 +42,21 @@ export default function App() {
 
   return (
     <div className={`font-sans bg-gray-50 ${highContrast ? 'high-contrast' : ''}`}>
-      {/* HEADER: Ya no recibe props de mute, se conecta solo */}
-      <Header 
-        handleNav={handleNav} 
-        highContrast={highContrast} 
-        setHighContrast={setHighContrast} 
+      <Header
+        handleNav={handleNav}
+        onOpenPanel={() => setIsPanelOpen(true)}
+        isPanelOpen={isPanelOpen}
       />
-      
+
       <main>
         {currentPage === 'plataforma' && (
           <div className="scroll-container active">
             <Hero />
             <Quote />
             <LearningHub onNavigateToCourses={() => handleNav('cursos', 'cursos-top')} />
-            
           </div>
         )}
-        
+
         {currentPage === 'cursos' && (
           <div className="scroll-container active">
             <ErrorBoundary>
@@ -69,17 +74,21 @@ export default function App() {
             <VisionSection />
             <FutureWorkSection />
             <TechnicalDetailsSection />
-          
           </div>
         )}
 
         {currentPage === 'simulador' && (
           <div className="scroll-container active">
-            <SimulatorSection /> 
-            
+            <SimulatorSection />
           </div>
         )}
       </main>
+
+      {/* Panel de accesibilidad: siempre montado, animado con CSS */}
+      <AccessibilityPanel
+        isOpen={isPanelOpen}
+        onClose={() => setIsPanelOpen(false)}
+      />
     </div>
   );
 }

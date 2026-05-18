@@ -19,9 +19,18 @@ const TeamSection = () => {
         
         {/* Columna Izquierda: Texto enriquecido con info del PDF */}
         <div className="text-center md:text-left">
-          <h1 className="text-4xl md:text-6xl font-extrabold text-blue-600 mb-6">Hola, somos Braillearn.</h1>
-          
-          <div className="flex justify-center md:justify-start space-x-2 mb-6" aria-label="Braillearn en Braille">
+          {/*
+            h2 en lugar de h1 — la página ya tiene un h1 en Hero.
+            Solo debe existir un h1 por página (WCAG 1.3.1 / buena práctica).
+          */}
+          <h2 className="text-4xl md:text-6xl font-extrabold text-blue-600 mb-6">Hola, somos Braillearn.</h2>
+
+          {/*
+            aria-hidden="true": las celdas Braille que deletrean "Braillearn"
+            son puramente decorativas — el nombre ya está en el h2 de arriba.
+            Sin esto el SR lee "Letra b. Puntos 1 y 2. Letra r. Puntos..." x10.
+          */}
+          <div className="flex justify-center md:justify-start space-x-2 mb-6" aria-hidden="true">
             {['b','r','a','i','l','l','e','a','r','n'].map((char, i) => (
                 <BrailleCell key={i} dots={braillePatterns[char]} char={char} isInteractive={false} className="text-gray-800 p-1 w-10 h-14" />
             ))}

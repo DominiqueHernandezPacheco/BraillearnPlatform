@@ -366,3 +366,34 @@ footer {
     stroke: var(--hc-border) !important;
     stroke-width: 2px;
 }
+/* =========================================
+   ACCESIBILIDAD: MOVIMIENTO REDUCIDO
+   WCAG 2.1 criterio 2.3.3 — respetar la
+   preferencia del sistema operativo.
+   NVDA + Firefox no lee contenido con
+   filter: blur() activo; esta regla también
+   resuelve ese problema.
+   ========================================= */
+@media (prefers-reduced-motion: reduce) {
+  .full-page-section {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    transition: none !important;
+  }
+  .scroll-container {
+    transition: none !important;
+  }
+}
+
+/* Reducción de movimiento activada manualmente desde el panel de accesibilidad.
+   Se aplica añadiendo la clase .reduce-motion al elemento <html> (AccessibilityContext). */
+.reduce-motion .full-page-section {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  transition: none !important;
+}
+.reduce-motion .scroll-container {
+  transition: none !important;
+}

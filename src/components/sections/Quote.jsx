@@ -8,8 +8,14 @@ const Quote = () => {
   const animatedPercent = useCountUp(10, 1500, isVisible);
 
   return (
-    <section ref={ref} className="full-page-section bg-gray-50 px-6">
+    <section
+      ref={ref}
+      aria-label="Estadística sobre alfabetización Braille"
+      className="full-page-section bg-gray-50 px-6"
+    >
       <div className="container mx-auto max-w-3xl text-center">
+        {/* Encabezado solo visible para lectores de pantalla — sirve como landmark */}
+        <h2 className="sr-only">Dato sobre alfabetización en Braille</h2>
         <div className="bg-white p-8 md:p-12 rounded-2xl shadow-xl" role="status" aria-live="polite">
           <p className="text-3xl md:text-4xl font-medium text-blue-600 mb-4 tabular-nums">
             "solo el {animatedPercent}% de personas con ceguera puede leer braille"

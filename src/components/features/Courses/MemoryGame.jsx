@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { braillePatterns } from '../../../constants/braillePatterns';
 import BrailleCell from '../../common/BrailleCell';
 import { shuffleArray } from '../../../utils/arrayHelpers';
+// NUEVO: Importamos el servicio de conexión
+import { brailleService } from '../../../utils/brailleService'; 
 
 const COLS = 4;
 
@@ -88,7 +90,7 @@ const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) =
         return () => clearTimeout(timer);
     }, [flipped, cards]);
 
-    // ─── VOLTEAR CARTA ───────────────────────────────────────────────────────
+   // ─── VOLTEAR CARTA ───────────────────────────────────────────────────────
     const handleCardClick = (index) => {
         if (isLocked || flipped.includes(index) || matched.includes(index)) return;
         if (flipped.length >= 2) return;
@@ -96,6 +98,14 @@ const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) =
         setFlipped(prev => [...prev, index]);
 
         const card = cards[index];
+
+        // NUEVO: Enviar la letra al hardware y loguear la respuesta de la API
+        brailleService.sendText(card.val).then(respuesta => {
+            console.log(`🤖 Memorama - Se envió la letra [ ${card.val.toUpperCase()} ] al display. Respuesta:`, respuesta);
+        }).catch(error => {
+            console.error(`🚨 Error al enviar la letra [ ${card.val.toUpperCase()} ]:`, error);
+        });
+
         if (card.type === 'char') {
             speakText(`Letra ${card.val.toUpperCase()}`, true);
         } else {

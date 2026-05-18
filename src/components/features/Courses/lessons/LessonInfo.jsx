@@ -1,7 +1,17 @@
-import React from 'react';
-import { getIcon } from '../../../../utils/iconMap'; // Ajusta la ruta según donde esté utils
+import React, { useEffect } from 'react';
+import { getIcon } from '../../../../utils/iconMap'; //[cite: 2]
+// Importamos el servicio
+import { brailleService } from '../../../../utils/brailleService';
 
 const LessonInfo = ({ title, content, highlight, iconType }) => {
+
+    // NUEVO: Sincronizar el contenido de texto con la ESP32
+    useEffect(() => {
+        if (content) {
+            brailleService.sendText(content);
+        }
+    }, [content]);
+
     return (
         <div className="flex flex-col items-center animate-fadeIn w-full">
             <div className="bg-white p-8 rounded-full shadow-lg mb-8 border-4 border-blue-100 transform hover:scale-105 transition-transform">

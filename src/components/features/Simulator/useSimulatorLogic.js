@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // AÑADIDO: useEffect
 import useBrailleSound from '../../../hooks/useBrailleSound';
 import { braillePatterns } from '../../../constants/braillePatterns';
 import { textToBrailleCells } from '../../../utils/textHelpers';
 import { NOTES } from '../../../constants/soundConfig';
+// NUEVO: Importar el servicio de conexión
+import { brailleService } from '../../../utils/brailleService';
 
 const useSimulatorLogic = () => {
   const [inputText, setInputText] = useState("Hola mundo");
@@ -20,12 +22,44 @@ const useSimulatorLogic = () => {
   const brailleCells = textToBrailleCells(inputText);
   
   // Paginación: obtenemos el bloque actual y rellenamos con espacios vacíos
-  // sin mutar el array original (Array.from crea un nuevo array inmutable).
   const pageSlice = brailleCells.slice(currentIndex, currentIndex + DISPLAY_SIZE);
   const currentCells = Array.from(
     { length: DISPLAY_SIZE },
     (_, i) => pageSlice[i] ?? { char: ' ', dots: braillePatterns['blank'] }
   );
+
+  
+  // ─── EFECTO ESPEJO CON DEPURACIÓN ──────────────────────────────────────────
+  useEffect(() => {
+    // 1. Extraemos el texto
+    const textoVisible = currentCells.map(cell => cell.char).join('').trimEnd();
+
+    // PUNTO DE CONTROL 1: ¿React se da cuenta de que escribiste?
+    console.log("👀 1. Detecté un cambio. Texto visible capturado:", textoVisible === "" ? "[VACÍO]" : textoVisible);
+
+    if (!textoVisible) {
+        console.log("🛑 2. El texto está vacío. Cancelando el envío.");
+        return;
+    }
+
+    const timer = setTimeout(() => {
+      // PUNTO DE CONTROL 2: ¿Pasó el medio segundo del Debounce?
+      console.log(`⏳ 3. Pasaron los 500ms. Enviando "${textoVisible}" a la API...`);
+      
+      brailleService.sendText(textoVisible).then(respuesta => {
+        // PUNTO DE CONTROL 3: La API respondió
+        console.log(`✅ 4. ¡La API respondió para el simulador!`, respuesta);
+      }).catch(error => {
+        // PUNTO DE CONTROL 4: La petición falló
+        console.error(`🚨 4. Error al contactar a la API desde el simulador:`, error);
+      });
+    },1000);
+
+    return () => clearTimeout(timer);
+    
+  // Nota: Agregué currentCells a las dependencias por seguridad
+  }, [inputText, currentIndex, currentCells]); 
+  // ──────────────────────────────────────────────────────────────────────────
 
   // Acciones
   const handleInputChange = (e) => {
@@ -43,7 +77,6 @@ const useSimulatorLogic = () => {
 
   const goToNext = () => {
     playNav(NOTES.NAV_NEXT);
-    // Avanzamos por bloque exacto de 12
     const newIndex = currentIndex + DISPLAY_SIZE;
     if (newIndex < brailleCells.length) {
         setCurrentIndex(newIndex);
@@ -53,25 +86,20 @@ const useSimulatorLogic = () => {
 
   const goToPrev = () => {
     playNav(NOTES.NAV_PREV);
-    // Retrocedemos por bloque exacto de 12
     const newIndex = Math.max(0, currentIndex - DISPLAY_SIZE);
     setCurrentIndex(newIndex);
     setLiveRegionText(`Página anterior`);
   };
 
-  // --- AQUÍ ESTÁ EL CAMBIO CLAVE PARA EL PAGINADO ---
   const totalPages = Math.ceil(brailleCells.length / DISPLAY_SIZE) || 1;
   const currentPage = Math.floor(currentIndex / DISPLAY_SIZE) + 1;
   
-  // Etiqueta limpia: "Página 1 de 3"
   const paginationLabel = `Página ${currentPage} de ${totalPages}`;
 
-  // Lógica de deshabilitar botones
   const isPrevDisabled = currentPage === 1;
   const isNextDisabled = currentPage === totalPages;
 
   return {
-    // Estados
     inputText,
     audioMode,
     playbackSpeed,
@@ -79,13 +107,9 @@ const useSimulatorLogic = () => {
     liveRegionText,
     isPrevDisabled,
     isNextDisabled,
-    paginationLabel, // <--- Ahora devuelve el string bonito
-    
-    // Setters simples
+    paginationLabel, 
     setAudioMode,
     setPlaybackSpeed,
-
-    // Handlers complejos
     handleInputChange,
     handlePlay,
     goToNext,

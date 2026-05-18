@@ -1,12 +1,21 @@
 import React, { useEffect } from 'react';
-import { braillePatterns } from '../../../../constants/braillePatterns';
-import BrailleCell from '../../../common/BrailleCell';
-import useBrailleSound from '../../../../hooks/useBrailleSound';
-import { useAudio } from '../../../../context/AudioContext';
+import { braillePatterns } from '../../../../constants/braillePatterns'; //[cite: 2]
+import BrailleCell from '../../../common/BrailleCell'; //[cite: 2]
+import useBrailleSound from '../../../../hooks/useBrailleSound'; //[cite: 2]
+import { useAudio } from '../../../../context/AudioContext'; //[cite: 2]
+// Asegúrate de ajustar la ruta correcta hacia tu nuevo servicio
+import { brailleService } from '../../../../utils/brailleService'; 
 
 const LessonVowel = ({ char, visualDesc, patternExp }) => {
     const { playPattern } = useBrailleSound();
     const { isMuted } = useAudio();
+
+    // NUEVO: Efecto para enviar la letra al display físico automáticamente
+    useEffect(() => {
+        if (char) {
+            brailleService.sendText(char);
+        }
+    }, [char]);
 
     const play = () => {
         if (!isMuted) {
@@ -14,22 +23,19 @@ const LessonVowel = ({ char, visualDesc, patternExp }) => {
         }
     };
 
-    // Atajo de teclado: Barra Espaciadora
     useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (e.code === 'Space') {
-                e.preventDefault();
-                // Solo disparamos manual si el foco no está ya en el botón
-                // (en ese caso el navegador dispara onClick automáticamente)
-                if (document.activeElement.tagName !== 'BUTTON') {
-                    play();
-                }
+        const enviarYRecibir = async () => {
+            if (char) {
+                // Aquí atrapamos lo que la API nos devuelve en la variable 'respuesta'
+                const respuesta = await brailleService.sendText(char);
+                
+                // Lo imprimimos en la consola para que lo puedas ver
+                console.log(` La API respondió para la letra ${char}:`, respuesta);
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [char, isMuted]); // Se actualiza si cambia la letra o el estado de mute
+        enviarYRecibir();
+    }, [char]);
 
     return (
         <div className="flex flex-col items-center w-full animate-fadeIn">

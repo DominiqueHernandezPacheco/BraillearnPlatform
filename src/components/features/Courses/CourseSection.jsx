@@ -6,6 +6,7 @@ import { generateRandomExercises } from '../../../utils/courseGenerator';
 import { useAudio } from '../../../context/AudioContext';
 import { braillePatterns } from '../../../constants/braillePatterns';
 import { NOTES } from '../../../constants/soundConfig';
+import { useProgress } from '../../../hooks/useProgress';
 
 import CourseMenu from './CourseMenu';
 import MemoryGame from './MemoryGame';
@@ -24,6 +25,9 @@ const CourseSection = ({ highContrast }) => {
     const lessonContainerRef = useRef(null);
     const skipAttemptRef     = useRef(false);
     const skipTimerRef       = useRef(null);
+
+    // NUEVO: Inicializamos el hook de progreso
+    const { markLessonComplete, updateLastLesson } = useProgress();
 
     const bgClass     = highContrast ? 'bg-black'   : 'bg-white';
     const cardBgClass = highContrast ? 'bg-white'   : 'bg-gray-50';
@@ -56,9 +60,17 @@ const CourseSection = ({ highContrast }) => {
         setActiveModule(mod);
         setCurrentLessonIndex(0);
         setFeedback(null);
+
+        // NUEVO: Guardamos este módulo como el último visitado
+        updateLastLesson(m.id);
     };
 
     const handleFinishModule = () => {
+        // NUEVO: Marcamos el módulo actual como completado en el progreso
+        if (activeModule) {
+            markLessonComplete(activeModule.id);
+        }
+
         setActiveModule(null);
         if (!isMuted) {
             playNav(NOTES.FINISH_1);
@@ -125,7 +137,6 @@ const CourseSection = ({ highContrast }) => {
     // ── NAVEGACIÓN CON TECLADO (flechas) ────────────────────────────────────
     useEffect(() => {
         const handleNavigationKeys = (e) => {
-            // Cuando el MemoryGame está activo, las flechas son suyas — no interferir
             const currentType = activeModule?.lessons[currentLessonIndex]?.type;
             if (currentType === 'memory') return;
 
@@ -228,7 +239,6 @@ const CourseSection = ({ highContrast }) => {
                     <MemoryGame
                         onComplete={() => {
                             speak('¡Excelente! Has completado el memorama.', true);
-                            // Avanzar automáticamente a la siguiente lección
                             setTimeout(() => {
                                 if (currentLessonIndex < activeModule.lessons.length - 1) {
                                     setCurrentLessonIndex(c => c + 1);
@@ -272,7 +282,6 @@ const CourseSection = ({ highContrast }) => {
         >
             <div className="w-full max-w-4xl">
 
-                {/* Barra superior: botón "Mapa" y contador */}
                 <div className="flex justify-between items-center mb-8">
                     <button
                         onClick={() => { setActiveModule(null); window.speechSynthesis.cancel(); }}
@@ -292,7 +301,6 @@ const CourseSection = ({ highContrast }) => {
                     </div>
                 </div>
 
-                {/* Tarjeta de contenido */}
                 <div
                     className={`${cardBgClass} rounded-3xl p-8 md:p-12 shadow-inner text-center min-h-[550px] flex flex-col items-center justify-center relative transition-all`}
                 >
@@ -306,7 +314,6 @@ const CourseSection = ({ highContrast }) => {
 
                     {renderLessonContent()}
 
-                    {/* Feedback — role="alert" garantiza que el lector de pantalla lo anuncie */}
                     {feedback && (
                         <div
                             role="alert"
@@ -324,7 +331,6 @@ const CourseSection = ({ highContrast }) => {
                     )}
                 </div>
 
-                {/* Footer: navegación anterior / siguiente */}
                 <div className="flex justify-between mt-8 mb-12">
                     <button
                         disabled={currentLessonIndex === 0}

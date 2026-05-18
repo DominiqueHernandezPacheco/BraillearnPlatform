@@ -1,12 +1,34 @@
 import React, { useEffect } from 'react';
 import { braillePatterns } from '../../../../constants/braillePatterns';
 import BrailleCell from '../../../common/BrailleCell';
+// NUEVO: Importamos el servicio de conexión
+import { brailleService } from '../../../../utils/brailleService';
 
 const LessonTrueFalse = ({ lesson, onVerify }) => {
+
+    // NUEVO: Enviar el patrón al hardware en cuanto cargue la pregunta
+    useEffect(() => {
+        if (lesson && lesson.displayChar) {
+            brailleService.sendText(lesson.displayChar).then(respuesta => {
+                console.log(`🤖 True/False - Reto enviado [ ${lesson.displayChar.toUpperCase()} ]. Respuesta:`, respuesta);
+            }).catch(error => {
+                console.error(`🚨 Error al enviar el reto [ ${lesson.displayChar.toUpperCase()} ]:`, error);
+            });
+        }
+    }, [lesson]);
 
     const handleChoice = (choice) => {
         const isCorrect   = choice === lesson.isCorrect;
         const description = `Elegiste ${choice ? 'Verdadero' : 'Falso'}.`;
+
+        // NUEVO: Enviar la retroalimentación física (SI/NO)
+        const feedbackFisico = isCorrect ? "SI" : "NO";
+        brailleService.sendText(feedbackFisico).then(respuesta => {
+            console.log(`🤖 True/False - Feedback enviado [ ${feedbackFisico} ]. Respuesta:`, respuesta);
+        }).catch(error => {
+            console.error(`🚨 Error al enviar feedback [ ${feedbackFisico} ]:`, error);
+        });
+
         onVerify(isCorrect, description);
     };
 

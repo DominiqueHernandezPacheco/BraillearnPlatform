@@ -1,9 +1,14 @@
 import React, { useEffect } from 'react';
 import { getIcon } from '../../../utils/iconMap';
 import { useAudio } from '../../../context/AudioContext';
+// La importación ya estaba lista, ¡súper!
+import { useProgress } from '../../../hooks/useProgress';
 
 const CourseMenu = ({ modules, onSelect, highContrast }) => {
     const { speak } = useAudio();
+    
+    // NUEVO: Extraemos la lista de los módulos que ya terminamos
+    const { completedLessons } = useProgress();
 
     // Anuncia el menú al usuario al cargarse — crítico para usuarios ciegos
     useEffect(() => {
@@ -45,30 +50,48 @@ const CourseMenu = ({ modules, onSelect, highContrast }) => {
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {modules.map((mod, i) => (
-                        <button
-                            key={mod.id}
-                            onClick={() => onSelect(mod)}
-                            aria-label={`Módulo ${i + 1}: ${mod.title}. ${mod.description}. Presiona Enter para abrir.`}
-                            className={`${cardBgClass} p-8 rounded-3xl shadow-lg hover:-translate-y-2 transition-all duration-300 text-left border-2 ${cardHoverClass} group w-full focus:outline-none focus:ring-4 focus:ring-blue-400`}
-                        >
-                            <div
-                                className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-300 ${mod.id === 3 ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}
-                                aria-hidden="true"
+                    {modules.map((mod, i) => {
+                        // NUEVO: Verificamos si este módulo (mod.id) ya está en los completados
+                        const isCompleted = completedLessons.includes(mod.id);
+
+                        return (
+                            <button
+                                key={mod.id}
+                                onClick={() => onSelect(mod)}
+                                aria-label={`Módulo ${i + 1}: ${mod.title}. ${isCompleted ? 'Completado' : 'Sin empezar'}. ${mod.description}. Presiona Enter para abrir.`}
+                                className={`${cardBgClass} p-8 rounded-3xl shadow-lg hover:-translate-y-2 transition-all duration-300 text-left border-2 ${cardHoverClass} group w-full focus:outline-none focus:ring-4 focus:ring-blue-400 relative`}
                             >
-                                {getIcon(mod.iconType, "w-8 h-8")}
-                            </div>
-                            <h3 className={`text-2xl font-bold mb-2 ${highContrast ? 'text-white' : 'text-gray-900'}`}>
-                                {mod.title}
-                            </h3>
-                            <p className="text-sm font-bold text-blue-600 uppercase tracking-wide mb-3">
-                                {mod.subtitle}
-                            </p>
-                            <p className={highContrast ? 'text-gray-300' : 'text-gray-600'}>
-                                {mod.description}
-                            </p>
-                        </button>
-                    ))}
+                                <div
+                                    className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-300 ${mod.id === 3 ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}
+                                    aria-hidden="true"
+                                >
+                                    {getIcon(mod.iconType, "w-8 h-8")}
+                                </div>
+                                
+                                <h3 className={`text-2xl font-bold mb-3 ${highContrast ? 'text-white' : 'text-gray-900'}`}>
+                                    {mod.title}
+                                </h3>
+
+                                {/* NUEVO: Aquí está la píldora visual */}
+                                <div className="mb-4">
+                                    <span className={`px-3 py-1 text-xs font-bold rounded-full border shadow-sm ${
+                                        isCompleted
+                                            ? 'bg-green-100 text-green-700 border-green-200'
+                                            : 'bg-gray-200 text-gray-600 border-gray-300'
+                                    }`}>
+                                        {isCompleted ? '✓ Completado' : 'Sin empezar'}
+                                    </span>
+                                </div>
+
+                                <p className="text-sm font-bold text-blue-600 uppercase tracking-wide mb-3">
+                                    {mod.subtitle}
+                                </p>
+                                <p className={highContrast ? 'text-gray-300' : 'text-gray-600'}>
+                                    {mod.description}
+                                </p>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
         </section>

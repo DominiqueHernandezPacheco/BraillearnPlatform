@@ -1,12 +1,34 @@
 import React, { useEffect } from 'react';
 import { braillePatterns } from '../../../../constants/braillePatterns';
 import BrailleCell from '../../../common/BrailleCell';
+// NUEVO: Importar el servicio
+import { brailleService } from '../../../../utils/brailleService';
 
 const LessonQuiz = ({ lesson, onVerify }) => {
+
+    // NUEVO: Enviar el patrón objetivo al hardware cuando carga la pregunta
+    useEffect(() => {
+        if (lesson && lesson.targetChar) {
+            brailleService.sendText(lesson.targetChar).then(respuesta => {
+                console.log(`🤖 Quiz - Reto enviado [ ${lesson.targetChar.toUpperCase()} ]. Respuesta:`, respuesta);
+            }).catch(error => {
+                console.error(`🚨 Error al enviar el reto [ ${lesson.targetChar.toUpperCase()} ]:`, error);
+            });
+        }
+    }, [lesson]);
 
     const handleChoice = (option) => {
         const isCorrect  = option === lesson.targetChar;
         const description = `Elegiste la letra ${option.toUpperCase()}.`;
+
+        // NUEVO: Enviar retroalimentación física (SI/NO)
+        const feedbackFisico = isCorrect ? "SI" : "NO";
+        brailleService.sendText(feedbackFisico).then(respuesta => {
+            console.log(`🤖 Quiz - Feedback enviado [ ${feedbackFisico} ]. Respuesta:`, respuesta);
+        }).catch(error => {
+            console.error(`🚨 Error al enviar feedback [ ${feedbackFisico} ]:`, error);
+        });
+
         onVerify(isCorrect, description);
     };
 

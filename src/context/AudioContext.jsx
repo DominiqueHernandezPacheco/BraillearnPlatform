@@ -7,6 +7,24 @@ export const AudioProvider = ({ children }) => {
     const [availableVoices, setAvailableVoices] = useState([]);
     const synthRef = useRef(window.speechSynthesis);
 
+    // ── Nuevas preferencias del panel de accesibilidad (persistidas) ───────────
+    const [speechRate, setSpeechRateState] = useState(
+        () => parseFloat(localStorage.getItem('braillearn_speechRate')) || 1.0
+    );
+    const [selectedVoiceURI, setSelectedVoiceURIState] = useState(
+        () => localStorage.getItem('braillearn_voiceURI') || ''
+    );
+
+    const setSpeechRate = (rate) => {
+        setSpeechRateState(rate);
+        localStorage.setItem('braillearn_speechRate', String(rate));
+    };
+    const setSelectedVoiceURI = (uri) => {
+        setSelectedVoiceURIState(uri);
+        localStorage.setItem('braillearn_voiceURI', uri);
+    };
+    // ──────────────────────────────────────────────────────────────────────────
+
     // 1. Cargar las voces cuando el navegador esté listo
     useEffect(() => {
         const loadVoices = () => {
@@ -21,33 +39,37 @@ export const AudioProvider = ({ children }) => {
         }
     }, []);
 
-    // 2. Función inteligente para encontrar la mejor voz
+    // 2. Función inteligente para encontrar la mejor voz.
+    //    Prioridad: voz seleccionada manualmente → lista de calidad → primera en español.
     const getBestVoice = () => {
         if (availableVoices.length === 0) return null;
 
+        // Si el usuario eligió una voz específica en el panel, la usamos
+        if (selectedVoiceURI) {
+            const chosen = availableVoices.find(v => v.voiceURI === selectedVoiceURI);
+            if (chosen) return chosen;
+        }
+
         // LISTA DE PRIORIDAD (Buscamos estas voces famosas en orden)
-        // 'Google' -> Voces de Chrome (muy buenas)
-        // 'Microsoft' -> Voces de Edge (excelentes, casi como Azure)
-        // 'Paulina' / 'Monica' -> Voces mexicanas/españolas comunes de alta calidad
         const priorityKeywords = [
             'Dalia',
             'Microsoft Dalia',
-            'Google español', 
-            'Google', 
+            'Google español',
+            'Google',
             'Microsoft Sabina', // Voz mexicana de Edge
             'Paulina',          // Voz mexicana de Windows
-            'Mexico', 
+            'Mexico',
             'Spanish'
         ];
 
         for (let keyword of priorityKeywords) {
-            const found = availableVoices.find(v => 
+            const found = availableVoices.find(v =>
                 v.name.includes(keyword) || v.lang.includes(keyword)
             );
             if (found && found.lang.startsWith('es')) return found;
         }
 
-        // Si no encuentra ninguna "famosa", devuelve la primera en español que encuentre
+        // Si no encuentra ninguna "famosa", devuelve la primera en español
         return availableVoices.find(v => v.lang.startsWith('es')) || null;
     };
 
@@ -61,16 +83,15 @@ export const AudioProvider = ({ children }) => {
         }
 
         const utterance = new SpeechSynthesisUtterance(text);
-        
+
         const bestVoice = getBestVoice();
         if (bestVoice) {
             utterance.voice = bestVoice;
         }
 
-        utterance.rate = 1;  // Velocidad
-        utterance.pitch = 1; // Tono
-        // utterance.lang ya no es tan necesario si asignamos utterance.voice, pero por si acaso:
-        utterance.lang = 'es-MX'; 
+        utterance.rate  = speechRate; // Usa la velocidad configurada en el panel
+        utterance.pitch = 1;
+        utterance.lang  = 'es-MX';
 
         synthRef.current.speak(utterance);
     };
@@ -88,7 +109,17 @@ export const AudioProvider = ({ children }) => {
     }, []);
 
     return (
-        <AudioContext.Provider value={{ isMuted, toggleMute, speak }}>
+        <AudioContext.Provider value={{
+            isMuted,
+            toggleMute,
+            speak,
+            // Nuevos: expuestos para el panel de accesibilidad
+            speechRate,
+            setSpeechRate,
+            selectedVoiceURI,
+            setSelectedVoiceURI,
+            availableVoices,
+        }}>
             {children}
         </AudioContext.Provider>
     );
