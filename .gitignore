@@ -14,7 +14,8 @@ dist-ssr
 dist-electron
 *.exe
 
-# Editor directories and files
+# Editor / tooling directories and files
+.claude/
 .vscode/*
 !.vscode/extensions.json
 .idea
