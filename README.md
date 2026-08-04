@@ -4,7 +4,7 @@
 
 **Digital autonomy and Braille literacy for visually impaired learners — web, desktop, and a hardware pilot in the field.**
 
-🥇 **Gold Medal — Infomatrix México National 2026**, advancing to the Infomatrix International Final in Thailand
+🥇 **Gold Medal — Infomatrix México National 2026**, advancing to PISF in Thailand.
 🥈 Silver Medal — Infomatrix 2025 Regional
 
 [![React](https://img.shields.io/badge/React-19-149eca?logo=react&logoColor=white)](https://react.dev)
