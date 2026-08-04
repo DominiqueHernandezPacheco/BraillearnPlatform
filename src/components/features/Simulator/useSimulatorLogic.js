@@ -7,7 +7,7 @@ import { NOTES } from '../../../constants/soundConfig';
 import { brailleService } from '../../../utils/brailleService';
 
 const useSimulatorLogic = () => {
-  const [inputText, setInputText] = useState("Hola mundo");
+  const [inputText, setInputText] = useState("Hola");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [audioMode, setAudioMode] = useState('rhythmic');
   const [playbackSpeed, setPlaybackSpeed] = useState('normal');
