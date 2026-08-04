@@ -53,9 +53,9 @@ const Header = ({ handleNav, onOpenPanel, isPanelOpen }) => {
         {/* MENÚ DE ESCRITORIO */}
         <div className="hidden md:flex items-center space-x-6">
           <a href="#inicio" onClick={(e) => { e.preventDefault(); handleNav('plataforma', 'inicio'); }} className="text-blue-100 hover:text-white font-medium transition-colors">Inicio</a>
-          <a href="#cursos" onClick={(e) => { e.preventDefault(); handleNav('cursos', 'cursos-top'); }} className="text-blue-100 hover:text-white font-medium transition-colors">Cursos</a>
+          <a data-tour="nav-cursos" href="#cursos" onClick={(e) => { e.preventDefault(); handleNav('cursos', 'cursos-top'); }} className="text-blue-100 hover:text-white font-medium transition-colors">Cursos</a>
           <a href="#acerca" onClick={(e) => { e.preventDefault(); handleNav('proyecto', 'acerca'); }} className="text-blue-100 hover:text-white font-medium transition-colors">Acerca del Proyecto</a>
-          <a href="#simulador" onClick={(e) => { e.preventDefault(); handleNav('simulador', 'simulador-top'); }} className="text-blue-100 hover:text-white font-medium transition-colors">Simulador</a>
+          <a data-tour="nav-simulador" href="#simulador" onClick={(e) => { e.preventDefault(); handleNav('simulador', 'simulador-top'); }} className="text-blue-100 hover:text-white font-medium transition-colors">Simulador</a>
         </div>
 
         {/* CONTROLES */}
@@ -90,6 +90,7 @@ const Header = ({ handleNav, onOpenPanel, isPanelOpen }) => {
 
           {/* Botón de Panel de Accesibilidad */}
           <button
+            data-tour="a11y-button"
             onClick={onOpenPanel}
             aria-label="Abrir panel de accesibilidad"
             aria-expanded={isPanelOpen}

@@ -31,7 +31,7 @@ const LearningHub = ({ onNavigateToCourses }) => {
     <section ref={ref} className="full-page-section bg-white px-6" id="cursos">
       <div className="container mx-auto text-center">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">¡BIENVENIDO a tu centro de Aprendizaje!</h2>
-        <div className="max-w-md mx-auto bg-blue-600 text-white p-6 rounded-2xl shadow-2xl mb-6">
+        <div data-tour="learning-progress" className="max-w-md mx-auto bg-blue-600 text-white p-6 rounded-2xl shadow-2xl mb-6">
           <h3 className="text-xl font-semibold mb-3">Tu progreso General</h3>
           <div className="flex flex-col md:flex-row items-center justify-center space-y-3 md:space-y-0 md:space-x-6 mb-5">
             <div className="relative w-28 h-28" role="img" aria-label={`Progreso del módulo: ${progress}% completado.`}>

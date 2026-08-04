@@ -19,6 +19,7 @@ import SimulatorSection from './components/features/Simulator/SimulatorSection';
 import CourseSection from './components/features/Courses/CourseSection';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import AccessibilityPanel from './components/features/AccessibilityPanel/AccessibilityPanel';
+import OnboardingTour from './components/features/Onboarding/OnboardingTour';
 // Contexto de accesibilidad
 import { useAccessibility } from './context/AccessibilityContext';
 
@@ -89,6 +90,9 @@ export default function App() {
         isOpen={isPanelOpen}
         onClose={() => setIsPanelOpen(false)}
       />
+
+      {/* Recorrido guiado: se muestra solo si el usuario es nuevo o no lo ha terminado */}
+      <OnboardingTour />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useAccessibility } from '../../../context/AccessibilityContext';
 import { useAudio } from '../../../context/AudioContext';
+import { useUser } from '../../../context/UserContext';
 
 // ── Iconos internos ───────────────────────────────────────────────────────────
 const XIcon = () => (
@@ -75,6 +76,8 @@ const AccessibilityPanel = ({ isOpen, onClose }) => {
         selectedVoiceURI, setSelectedVoiceURI,
         availableVoices,
     } = useAudio();
+
+    const { resetOnboarding } = useUser();
 
     // Foco automático al primer elemento cuando se abre
     const closeButtonRef = useRef(null);
@@ -221,6 +224,22 @@ const AccessibilityPanel = ({ isOpen, onClose }) => {
                                 onChange={setReduceMotion}
                             />
                         </div>
+                    </section>
+
+                    <hr className="border-gray-100" />
+
+                    {/* ── Ayuda ── */}
+                    <section aria-labelledby="a11y-help-heading">
+                        <h3 id="a11y-help-heading" className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+                            Ayuda
+                        </h3>
+                        <button
+                            onClick={() => { resetOnboarding(); onClose(); }}
+                            className="w-full px-4 py-2 rounded-lg text-sm font-medium text-blue-600 border border-blue-200
+                                hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        >
+                            Ver el recorrido guiado de nuevo
+                        </button>
                     </section>
                 </div>
 
