@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Braillearn — Aprovisionamiento</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Inter, sans-serif;
+    background: #f9fafb;
+    color: #111827;
+    margin: 0;
+    padding: 0;
+  }
+  header {
+    background: #2563EB;
+    color: white;
+    padding: 20px 32px;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; font-size: 13px; color: #dbeafe; }
+  main {
+    max-width: 480px;
+    margin: 32px auto;
+    padding: 0 16px;
+  }
+  .card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
+  }
+  .field { margin-bottom: 16px; }
+  .hint { font-size: 12px; color: #2563EB; margin-top: 4px; }
+  .hint.muted { color: #6b7280; }
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  input:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 2px #dbeafe; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row input { flex: 1; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 10px 16px;
+  }
+  .btn-primary { background: #2563EB; color: white; width: 100%; padding: 12px; font-size: 15px; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-secondary { background: #eef2ff; color: #2563EB; }
+  .btn-secondary:hover { background: #e0e7ff; }
+  #result { margin-top: 8px; }
+  .result-ok {
+    background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46;
+    border-radius: 10px; padding: 14px; font-size: 14px; line-height: 1.6;
+  }
+  .result-error {
+    background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+    border-radius: 10px; padding: 14px; font-size: 14px;
+  }
+  .device-id { font-weight: 700; font-size: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Braillearn — Aprovisionamiento</h1>
+  <p>Prepara una unidad nueva antes de entregarla. Solo lo usa el técnico.</p>
+</header>
+
+<main>
+  <div class="card">
+    <div class="field">
+      <label for="ssid">Red WiFi (SSID)</label>
+      <input type="text" id="ssid" placeholder="Nombre de la red" />
+      <p class="hint" id="ssid-hint"></p>
+    </div>
+
+    <div class="field">
+      <label for="password">Contraseña del WiFi</label>
+      <div class="row">
+        <input type="password" id="password" placeholder="Contraseña" />
+        <button class="btn-secondary" type="button" id="toggle-password">Ver</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <button class="btn-secondary" type="button" id="detect-again" style="width:100%;">
+        Detectar mi red actual de nuevo
+      </button>
+    </div>
+
+    <div class="field">
+      <label for="sdPath">Ruta de la partición de arranque de la SD</label>
+      <input type="text" id="sdPath" placeholder="Ej. D:\" />
+    </div>
+
+    <button class="btn-primary" id="submit">Preparar unidad</button>
+
+    <div id="result"></div>
+  </div>
+</main>
+
+<script>
+  const ssidInput = document.getElementById('ssid');
+  const passwordInput = document.getElementById('password');
+  const sdPathInput = document.getElementById('sdPath');
+  const ssidHint = document.getElementById('ssid-hint');
+  const resultBox = document.getElementById('result');
+
+  async function loadCurrentWifi() {
+    ssidHint.textContent = 'Detectando tu red actual...';
+    ssidHint.className = 'hint muted';
+    try {
+      const res = await fetch('/api/wifi');
+      const data = await res.json();
+      if (data.ssid) {
+        ssidInput.value = data.ssid;
+        passwordInput.value = data.password || '';
+        ssidHint.textContent = 'Detectado de tu red actual — puedes cambiarlo si no es este.';
+        ssidHint.className = 'hint';
+      } else {
+        ssidHint.textContent = 'No se pudo detectar tu red automáticamente. Escríbela a mano.';
+        ssidHint.className = 'hint muted';
+      }
+    } catch {
+      ssidHint.textContent = 'No se pudo detectar tu red automáticamente. Escríbela a mano.';
+      ssidHint.className = 'hint muted';
+    }
+  }
+
+  document.getElementById('toggle-password').addEventListener('click', () => {
+    const isHidden = passwordInput.type === 'password';
+    passwordInput.type = isHidden ? 'text' : 'password';
+    document.getElementById('toggle-password').textContent = isHidden ? 'Ocultar' : 'Ver';
+  });
+
+  document.getElementById('detect-again').addEventListener('click', loadCurrentWifi);
+
+  document.getElementById('submit').addEventListener('click', async () => {
+    resultBox.innerHTML = '';
+    const ssid = ssidInput.value.trim();
+    const password = passwordInput.value;
+    const sdPath = sdPathInput.value.trim();
+
+    if (!ssid || !sdPath) {
+      resultBox.innerHTML = '<div class="result-error">Falta el nombre de la red o la ruta de la SD.</div>';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ssid, password, sdPath }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        resultBox.innerHTML = '<div class="result-error">' + data.error + '</div>';
+        return;
+      }
+
+      resultBox.innerHTML =
+        '<div class="result-ok">' +
+        'Unidad lista.<br>' +
+        'ID del dispositivo: <span class="device-id">' + data.deviceId + '</span><br>' +
+        'Red WiFi grabada: ' + data.ssid + '<br>' +
+        'Archivo: ' + data.filePath + '<br><br>' +
+        'Pega la etiqueta con el ID, saca la SD y métela al Raspberry. ' +
+        'La familia confirma el emparejamiento ella misma desde la app.' +
+        '</div>';
+    } catch (err) {
+      resultBox.innerHTML = '<div class="result-error">' + err.message + '</div>';
+    }
+  });
+
+  loadCurrentWifi();
+</script>
+</body>
+</html>

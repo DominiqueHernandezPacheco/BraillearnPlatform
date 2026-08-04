@@ -1,0 +1,11 @@
+{
+  "name": "braillearn-provisioning-tool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Herramienta interna para preparar cada Raspberry Pi antes de entregarlo a una familia piloto. No es parte de la plataforma (src/) ni se empaqueta con Electron.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "cli": "node provision.js"
+  }
+}
