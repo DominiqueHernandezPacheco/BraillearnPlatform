@@ -14,6 +14,14 @@ dist-ssr
 dist-electron
 *.exe
 
+# Motor y voces de Piper TTS — se descargan solos la primera vez que se usan
+.piper/
+
+# Secrets (Picovoice AccessKey, Anthropic API key, etc.)
+.env
+.env.*
+!.env.example
+
 # Editor / tooling directories and files
 .claude/
 .vscode/*

@@ -1,7 +1,15 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const { WakeWordService } = require('./wakeword/wakeWordService.cjs');
+const { LocalVoiceService } = require('./voice/localVoiceService.cjs');
+const claudeService = require('./claude/claudeService.cjs');
+const piperService = require('./tts/piperService.cjs');
 
 let mainWindow;
+const wakeWordService = new WakeWordService();
+const localVoiceService = new LocalVoiceService();
+let voiceMode = 'none'; // 'porcupine' | 'whisper-local' | 'none'
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -18,7 +26,7 @@ function createWindow() {
     },
   });
 
-  const startUrl = process.env.VITE_DEV_SERVER_URL || 
+  const startUrl = process.env.VITE_DEV_SERVER_URL ||
     `file://${path.join(__dirname, '../dist/index.html')}`;
 
   // 1. CARGAMOS LA APP (Esta es la línea clave)
@@ -35,7 +43,60 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  createWindow();
+
+  // Descarga Piper (motor + voz) en segundo plano desde ya, para que esté
+  // lista para cuando Braulio necesite decir algo, no hasta la primera vez.
+  piperService.ensureReady().then(
+    () => console.log('[Piper] Listo para hablar.'),
+    (err) => console.error('[Piper] No se pudo preparar:', err.message),
+  );
+
+  // 1. Intenta Porcupine (rápido, bajo consumo) — necesita AccessKey + .ppn.
+  const porcupineResult = await wakeWordService.start(() => {
+    mainWindow?.webContents.send('wake-word-detected');
+  });
+
+  if (porcupineResult?.ready) {
+    voiceMode = 'porcupine';
+    console.log('[Voice] Usando Porcupine para "Braulio".');
+    mainWindow?.webContents.send('voice-engine-status', { ready: true, engine: 'porcupine' });
+    return;
+  }
+
+  console.warn('[WakeWord] Porcupine no disponible:', porcupineResult?.reason);
+
+  // 2. Respaldo: Whisper local (más pesado, pero no depende de ninguna
+  //    cuenta ni de la API de voz del navegador, que no funciona en Electron).
+  const whisperResult = await localVoiceService.start({
+    onWake: () => mainWindow?.webContents.send('wake-word-detected'),
+    onCommand: (text) => mainWindow?.webContents.send('braulio-command-captured', text),
+    onModelProgress: (p) => {
+      // p.status suele ser 'downloading' | 'progress' | 'done', según el archivo del modelo
+      if (p?.status === 'progress' && mainWindow) {
+        mainWindow.webContents.send('braulio-model-progress', p);
+      }
+    },
+    // El micrófono ya reintenta solo varias veces (ver localVoiceService.cjs);
+    // esto solo se llama si de plano se rindió — antes moría en silencio y la
+    // insignia se quedaba mostrando "listo" para siempre aunque ya no escuchara.
+    onFatalError: (reason) => {
+      voiceMode = 'none';
+      console.error('[Voice] El motor de voz se detuvo y no se pudo recuperar:', reason);
+      mainWindow?.webContents.send('voice-engine-status', { ready: false, engine: 'none', reason });
+    },
+  });
+
+  if (whisperResult?.ready) {
+    voiceMode = 'whisper-local';
+    console.log('[Voice] Usando Whisper local para "Braulio".');
+    mainWindow?.webContents.send('voice-engine-status', { ready: true, engine: 'whisper-local' });
+  } else {
+    console.error('[Voice] Ningún motor de voz quedó disponible:', whisperResult?.reason);
+    mainWindow?.webContents.send('voice-engine-status', { ready: false, engine: 'none', reason: whisperResult?.reason });
+  }
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -44,3 +105,44 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+
+app.on('before-quit', async () => {
+  await Promise.all([wakeWordService.stop(), localVoiceService.stop()]);
+});
+
+// Permite al renderer preguntar qué motor de voz quedó activo (para mostrar
+// el estado correcto en la insignia del asistente, panel de accesibilidad, etc.)
+ipcMain.handle('wake-word-status', () => {
+  if (voiceMode === 'porcupine') return { ready: true, engine: 'porcupine' };
+  if (voiceMode === 'whisper-local') return { ready: true, engine: 'whisper-local' };
+  return { ready: false, engine: 'none', reason: 'Ningún motor de voz local pudo iniciar (revisa la consola de Electron).' };
+});
+
+// Fase 2b: preguntas abiertas del asistente de voz -> API de Claude.
+// Se llama solo cuando el comando de voz no matcheó ningún comando local
+// (ver src/utils/voiceIntents.js).
+ipcMain.handle('ask-claude', async (_event, { text, context } = {}) => {
+  try {
+    return await claudeService.ask(text, context);
+  } catch (err) {
+    console.error('[Claude] Error:', err.message);
+    return { text: '', navigateTo: null, error: err.message };
+  }
+});
+
+// Fase 3: síntesis de voz con Piper (100% local). Devuelve el WAV como
+// ArrayBuffer para que el renderer lo reproduzca con la Web Audio API.
+// La primera vez que se llama con una voz nueva, la descarga (unos segundos);
+// las siguientes veces ya está en disco y responde al toque.
+ipcMain.handle('synthesize-speech', async (_event, { text, voiceId, rate } = {}) => {
+  try {
+    const buffer = await piperService.synthesize(text, voiceId, rate);
+    return { audio: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) };
+  } catch (err) {
+    console.error('[Piper] Error sintetizando:', err.message);
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('tts-status', () => piperService.checkSetup());
+ipcMain.handle('tts-voices', () => piperService.listVoices());

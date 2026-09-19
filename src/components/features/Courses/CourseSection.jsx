@@ -16,7 +16,7 @@ import LessonBuilder from './lessons/LessonBuilder';
 import LessonQuiz from './lessons/LessonQuiz';
 import LessonTrueFalse from './lessons/LessonTrueFalse';
 
-const CourseSection = ({ highContrast }) => {
+const CourseSection = ({ highContrast, openModuleRequest }) => {
     const { playNav } = useBrailleSound();
     const [activeModule, setActiveModule]           = useState(null);
     const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
@@ -64,6 +64,15 @@ const CourseSection = ({ highContrast }) => {
         // NUEVO: Guardamos este módulo como el último visitado
         updateLastLesson(m.id);
     };
+
+    // Disparo externo (voz: "llévame a mi última lección") — App.jsx pasa un
+    // objeto nuevo cada vez que quiere que abramos un módulo por su id.
+    useEffect(() => {
+        if (!openModuleRequest?.moduleId) return;
+        const mod = COURSES_DATA.find((m) => m.id === openModuleRequest.moduleId);
+        if (mod) openModule(mod);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openModuleRequest]);
 
     const handleFinishModule = () => {
         // NUEVO: Marcamos el módulo actual como completado en el progreso
