@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/*
+ * Tokens de la landing. El azul de marca se muestreó de la captura de la
+ * plataforma (header ≈ rgb(0, 95, 247)); el resto de la escala se deriva de él.
+ */
+@theme {
+  --font-sans: 'Inter', 'Noto Sans KR', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Noto Sans KR', ui-monospace, SFMono-Regular, monospace;
+
+  --color-brand-50: #eef5ff;
+  --color-brand-100: #d9e8ff;
+  --color-brand-200: #b7d3ff;
+  --color-brand-300: #85b3ff;
+  --color-brand-400: #4a8bff;
+  --color-brand-500: #1a6fff;
+  --color-brand-600: #005ff7;
+  --color-brand-700: #004ac4;
+  --color-brand-800: #0a3d9c;
+  --color-brand-900: #0d3175;
+  --color-brand-950: #081c45;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* La navbar es fija: que los anclas y el foco por teclado no queden debajo. */
+    scroll-padding-top: 5rem;
+  }
+
+  html[data-landing-text='lg'] { font-size: 112.5%; }
+  html[data-landing-text='xl'] { font-size: 125%; }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: #ffffff;
+    color: #0f172a;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Coreano: no partir palabras a mitad y sin el tracking ajustado pensado para latín. */
+  html[lang='ko'] body {
+    word-break: keep-all;
+  }
+  html[lang='ko'] :is(h1, h2, h3, p, li, dt, dd, a, span, button, output, label) {
+    letter-spacing: normal;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-brand-600);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  .on-dark :focus-visible {
+    outline-color: var(--color-brand-300);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* Retícula de plano técnico: se desvanece hacia los bordes de la sección. */
+.bg-blueprint {
+  background-image:
+    linear-gradient(to right, rgb(148 163 184 / 0.22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(148 163 184 / 0.22) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
+}
+
+.bg-blueprint-dark {
+  background-image:
+    linear-gradient(to right, rgb(148 163 184 / 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(148 163 184 / 0.09) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse at 50% 30%, black 20%, transparent 75%);
+}

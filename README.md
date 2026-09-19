@@ -44,7 +44,7 @@ This repository is the frontend platform — the part a student opens every day.
 
 ```bash
 npm install
-npm run dev              # web app — http://localhost:5173
+npm run dev              # landing — http://localhost:5173 · learning platform — http://localhost:5173/plataforma/
 npm run electron:dev     # desktop app (Vite dev server + Electron together)
 ```
 

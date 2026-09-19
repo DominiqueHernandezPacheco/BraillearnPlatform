@@ -27,7 +27,7 @@ function createWindow() {
   });
 
   const startUrl = process.env.VITE_DEV_SERVER_URL ||
-    `file://${path.join(__dirname, '../dist/index.html')}`;
+    `file://${path.join(__dirname, '../dist/plataforma/index.html')}`;
 
   // 1. CARGAMOS LA APP (Esta es la línea clave)
   mainWindow.loadURL(startUrl);
