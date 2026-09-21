@@ -70,7 +70,7 @@ export default {
         title: 'Learn at your own pace.',
         lead: 'Lessons in English that adapt to you, with no manuals and no prior training.',
         previewTitle: 'Preview of the learning platform',
-        previewNote: 'This is the platform’s real home page. The full version includes courses, a simulator and more.',
+        previewNote: 'This is the platform’s real home page. The full version includes courses, messages to the Braille display and more.',
         features: [
             {
                 title: 'From the alphabet to words',

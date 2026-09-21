@@ -76,7 +76,7 @@ export default {
         title: 'Aprende a tu ritmo.',
         lead: 'Lecciones en español que se adaptan a ti, sin manuales ni capacitación previa.',
         previewTitle: 'Vista previa de la plataforma de aprendizaje',
-        previewNote: 'Es la página principal real de la plataforma. La versión completa incluye cursos, simulador y más.',
+        previewNote: 'Es la página principal real de la plataforma. La versión completa incluye cursos, mensajes para el display Braille y más.',
         features: [
             {
                 title: 'Del abecedario a las palabras',

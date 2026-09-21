@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Header from '../../components/layout/Header';
-import Hero from '../../components/sections/Hero';
-import Quote from '../../components/sections/Quote';
-import LearningHub from '../../components/sections/LearningHub';
-import { useAccessibility } from '../../context/AccessibilityContext';
+import Home from '../../components/features/Home/Home';
+import { site } from '../content';
 
 // Todo lo que sea clicable (enlaces, botones, interruptores) queda bloqueado y
 // solo muestra un aviso: la vista previa es la página principal, sin navegar.
@@ -11,7 +9,6 @@ const CLICKABLE = 'a, button, [role="button"], [role="switch"], summary';
 
 // Vista previa de la página principal de la plataforma, la misma que ve quien la abre.
 export default function PlatformPreview() {
-    const { highContrast } = useAccessibility();
     const [nudge, setNudge] = useState(false);
     const timer = useRef(null);
     const noop = useCallback(() => {}, []);
@@ -35,15 +32,11 @@ export default function PlatformPreview() {
     }, []);
 
     return (
-        <div className={`font-sans bg-gray-50 ${highContrast ? 'high-contrast' : ''}`}>
-            <Header handleNav={noop} onOpenPanel={noop} isPanelOpen={false} />
+        <div className="min-h-dvh bg-page text-ink">
+            <Header currentPage="plataforma" handleNav={noop} onOpenPanel={noop} isPanelOpen={false} />
 
-            <main>
-                <div className="scroll-container active">
-                    <Hero />
-                    <Quote />
-                    <LearningHub onNavigateToCourses={noop} />
-                </div>
+            <main id="main">
+                <Home handleNav={noop} onOpenModule={noop} />
             </main>
 
             <div
@@ -55,7 +48,7 @@ export default function PlatformPreview() {
                 <span>Vista previa de la página principal</span>
                 <a
                     data-preview-link
-                    href="/"
+                    href={site.platformUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-semibold text-yellow-300 underline underline-offset-4 hover:text-yellow-200"

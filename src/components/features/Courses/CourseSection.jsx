@@ -1,375 +1,346 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, CheckCircle } from '../../common/Icons';
+import { ArrowRight, RotateCcw } from 'lucide-react';
+import Braulio from '../../common/Braulio';
 import useBrailleSound from '../../../hooks/useBrailleSound';
-import { COURSES_DATA } from '../../../data/courseData';
+import { COURSES_DATA, getChapterRanges, chapterIndexOfStep } from '../../../data/courseData';
 import { generateRandomExercises } from '../../../utils/courseGenerator';
 import { useAudio } from '../../../context/AudioContext';
-import { braillePatterns } from '../../../constants/braillePatterns';
 import { NOTES } from '../../../constants/soundConfig';
 import { useProgress } from '../../../hooks/useProgress';
+import { buildNarration } from '../../../utils/lessonNarration';
+import GuideNote from '../../common/GuideNote';
 
-import CourseMenu from './CourseMenu';
+import CoursePath from './CoursePath';
+import LessonPlayer from './LessonPlayer';
 import MemoryGame from './MemoryGame';
 import LessonInfo from './lessons/LessonInfo';
 import LessonVowel from './lessons/LessonVowel';
 import LessonBuilder from './lessons/LessonBuilder';
 import LessonQuiz from './lessons/LessonQuiz';
 import LessonTrueFalse from './lessons/LessonTrueFalse';
+import LessonCheck from './lessons/LessonCheck';
+import LessonExplore from './lessons/LessonExplore';
 
-const CourseSection = ({ highContrast, openModuleRequest }) => {
+// Pasos que se recorren sin contestar nada
+const PASSTHROUGH = new Set(['info', 'vowel_learning', 'explore']);
+
+const CORRECT_HEADLINES = ['¡Correcto!', '¡Muy bien!', '¡Exacto!', '¡Así es!'];
+
+const scoreSentence = ({ correct, questions }) =>
+    `Respondiste bien ${correct} de ${questions} ${questions === 1 ? 'pregunta' : 'preguntas'} a la primera.`;
+
+const moduleName = (title) => title.replace(/^Módulo \d+:\s*/, '');
+
+const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => {
     const { playNav } = useBrailleSound();
-    const [activeModule, setActiveModule]           = useState(null);
-    const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
-    const [feedback, setFeedback]                   = useState(null);
-    const { isMuted, speak }                        = useAudio();
-    const lessonContainerRef = useRef(null);
-    const skipAttemptRef     = useRef(false);
-    const skipTimerRef       = useRef(null);
+    const { isMuted, speak, stop } = useAudio();
+    const { completedLessons, stepProgress, markLessonComplete, updateLastLesson, saveStep, clearSteps } = useProgress();
 
-    // NUEVO: Inicializamos el hook de progreso
-    const { markLessonComplete, updateLastLesson } = useProgress();
+    const [activeModule, setActiveModule] = useState(null);
+    const [stepIndex, setStepIndex] = useState(0);
+    const [feedback, setFeedback] = useState(null);
+    const [finished, setFinished] = useState(false);
+    const [score, setScore] = useState({ correct: 0, questions: 0 });
 
-    const bgClass     = highContrast ? 'bg-black'   : 'bg-white';
-    const cardBgClass = highContrast ? 'bg-white'   : 'bg-gray-50';
+    const headingRef = useRef(null);
+    const answeredRef = useRef(new Set()); // pasos ya contestados (para contar el primer intento)
+    const skipAttemptRef = useRef(false);
+    const skipTimerRef = useRef(null);
+    const goNextRef = useRef(() => {});
 
-    // Cancelar speech al desmontar
-    useEffect(() => {
-        return () => window.speechSynthesis.cancel();
-    }, []);
+    const lessons = activeModule?.lessons ?? [];
+    const lesson = lessons[stepIndex];
+    const total = lessons.length;
 
-    // Si el usuario silencia, cancelar la narración actual
-    useEffect(() => {
-        if (isMuted) window.speechSynthesis.cancel();
-    }, [isMuted]);
+    // ── ABRIR / SALIR ────────────────────────────────────────────────────────
+    const openModule = (m, startIndex = 0) => {
+        const mod = m.random ? { ...m, lessons: generateRandomExercises() } : m;
+        const start = m.random ? 0 : Math.min(Math.max(startIndex, 0), mod.lessons.length - 1);
 
-    // Foco al título al cambiar de lección (ayuda a los lectores de pantalla)
-    useEffect(() => {
-        if (activeModule) {
-            setTimeout(() => {
-                if (lessonContainerRef.current) lessonContainerRef.current.focus();
-            }, 100);
-        }
-    }, [currentLessonIndex, activeModule]);
-
-    // ── ABRIR / CERRAR MÓDULO ────────────────────────────────────────────────
-    const openModule = (m) => {
-        let mod = m;
-        if (m.id === 3) {
-            mod = { ...m, lessons: generateRandomExercises() };
-        }
-        setActiveModule(mod);
-        setCurrentLessonIndex(0);
+        answeredRef.current = new Set();
+        setScore({ correct: 0, questions: 0 });
+        setFinished(false);
         setFeedback(null);
-
-        // NUEVO: Guardamos este módulo como el último visitado
+        setStepIndex(start);
+        setActiveModule(mod);
         updateLastLesson(m.id);
     };
 
-    // Disparo externo (voz: "llévame a mi última lección") — App.jsx pasa un
-    // objeto nuevo cada vez que quiere que abramos un módulo por su id.
+    const exitLesson = () => {
+        stop();
+        setFinished(false);
+        setActiveModule(null);
+    };
+
+    // Paso desde el que se retoma un módulo al abrirlo por voz o desde el inicio.
+    const resumeIndexOf = (m) => {
+        if (m.random || completedLessons.includes(m.id)) return 0;
+        const reached = stepProgress[m.id];
+        return reached == null ? 0 : Math.min(reached, m.lessons.length - 1);
+    };
+
+    // Disparo externo (voz: "llévame a mi última lección", o el botón de Inicio)
     useEffect(() => {
         if (!openModuleRequest?.moduleId) return;
         const mod = COURSES_DATA.find((m) => m.id === openModuleRequest.moduleId);
-        if (mod) openModule(mod);
+        if (mod) openModule(mod, resumeIndexOf(mod));
+        onRequestHandled?.();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openModuleRequest]);
 
-    const handleFinishModule = () => {
-        // NUEVO: Marcamos el módulo actual como completado en el progreso
-        if (activeModule) {
-            markLessonComplete(activeModule.id);
-        }
+    // Al salir de esta sección, calla a Braulio
+    useEffect(() => () => stop(), [stop]);
 
-        setActiveModule(null);
+    // Mientras hay una lección abierta se oculta la barra inferior móvil
+    // (ver index.css) para dejar sitio a las acciones de la lección.
+    useEffect(() => {
+        if (!activeModule || finished) return;
+        document.body.dataset.lesson = feedback ? 'feedback' : 'on';
+        return () => { delete document.body.dataset.lesson; };
+    }, [activeModule, finished, feedback]);
+
+    // Si el usuario silencia, cancelar la narración actual
+    useEffect(() => {
+        if (isMuted) stop();
+    }, [isMuted, stop]);
+
+    // ── PROGRESO ─────────────────────────────────────────────────────────────
+    useEffect(() => {
+        if (activeModule && !activeModule.random && !finished) saveStep(activeModule.id, stepIndex);
+    }, [activeModule, stepIndex, finished, saveStep]);
+
+    // ── NARRACIÓN + FOCO AL CAMBIAR DE PASO ──────────────────────────────────
+    const narrate = () => {
+        if (lesson) speak(buildNarration(lesson, stepIndex, total), true);
+    };
+
+    useEffect(() => {
+        if (!activeModule || finished || !lesson) return;
+        window.scrollTo({ top: 0 });
+        const focusTimer = setTimeout(() => headingRef.current?.focus({ preventScroll: true }), 100);
+        if (isMuted) return () => clearTimeout(focusTimer);
+        const speakTimer = setTimeout(() => speak(buildNarration(lesson, stepIndex, total), true), 600);
+        return () => {
+            clearTimeout(focusTimer);
+            clearTimeout(speakTimer);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stepIndex, activeModule, finished]);
+
+    // ── AVANZAR / RETROCEDER ─────────────────────────────────────────────────
+    const finishModule = () => {
+        markLessonComplete(activeModule.id);
+        clearSteps(activeModule.id);
+        setFeedback(null);
+        setFinished(true);
+        window.scrollTo({ top: 0 });
         if (!isMuted) {
             playNav(NOTES.FINISH_1);
             setTimeout(() => playNav(NOTES.FINISH_2), 150);
             setTimeout(() => playNav(NOTES.FINISH_3), 300);
-            speak('¡Módulo finalizado! Has hecho un gran trabajo.', true);
         }
+        const scoreText = score.questions > 0 ? ` ${scoreSentence(score)}` : '';
+        speak(`¡Terminaste el ${activeModule.title.split(':')[0]}! Has hecho un gran trabajo.${scoreText}`, true);
     };
 
-    // Salida desde el MemoryGame con tecla Escape
-    const handleMemoryExit = () => {
-        setActiveModule(null);
-        window.speechSynthesis.cancel();
+    const goNext = () => {
+        skipAttemptRef.current = false;
+        setFeedback(null);
+        if (stepIndex < total - 1) setStepIndex((i) => i + 1);
+        else finishModule();
     };
 
-    // ── LECTURA AUTOMÁTICA AL CAMBIAR DE LECCIÓN ─────────────────────────────
-    useEffect(() => {
-        if (!activeModule || isMuted) return;
+    const goBack = () => {
+        if (stepIndex === 0) return;
+        skipAttemptRef.current = false;
+        setFeedback(null);
+        setStepIndex((i) => i - 1);
+    };
 
-        const lesson      = activeModule.lessons[currentLessonIndex];
-        const lessonNum   = `Lección ${currentLessonIndex + 1} de ${activeModule.lessons.length}. `;
-        let text          = '';
-
-        if (lesson.type === 'info') {
-            text = `${lessonNum}${lesson.title}. ${lesson.content}. ${lesson.highlight || ''}`;
-
-        } else if (lesson.type === 'vowel_learning') {
-            text = `${lessonNum}${lesson.title}. ${lesson.audioDesc}. ` +
-                   `Pulsa el botón o la tecla Espacio para escuchar el ritmo Braille.`;
-
-        } else if (lesson.type === 'quiz') {
-            const dots       = braillePatterns[lesson.targetChar];
-            const activeDots = dots
-                ? dots.map((d, i) => d ? (i + 1) : null).filter(Boolean).join(' y ')
-                : 'ninguno';
-            text = `${lessonNum}Pregunta: ${lesson.question}. ` +
-                   `El patrón mostrado tiene los puntos: ${activeDots}. ` +
-                   `Opciones: ${lesson.options.map((o, i) => `${i + 1}: ${o.toUpperCase()}`).join(', ')}. ` +
-                   `Usa las teclas 1, 2 o 3 para responder.`;
-
-        } else if (lesson.type === 'true_false') {
-            const dots       = braillePatterns[lesson.displayChar];
-            const activeDots = dots
-                ? dots.map((d, i) => d ? (i + 1) : null).filter(Boolean).join(' y ')
-                : 'ninguno';
-            text = `${lessonNum}Verdadero o Falso: ${lesson.question}. ` +
-                   `El patrón en pantalla tiene los puntos: ${activeDots}. ` +
-                   `Pulsa V para Verdadero o F para Falso.`;
-
-        } else if (lesson.type === 'builder' || lesson.type === 'mini_drill') {
-            text = `${lessonNum}${lesson.title}. ${lesson.question}. ` +
-                   `Usa el teclado Braille: F es punto 1, D es punto 2, S es punto 3, ` +
-                   `J es punto 4, K es punto 5, L es punto 6. ` +
-                   `Espacio para escuchar el patrón que construiste. Enter para verificar.`;
-
-        } else if (lesson.type === 'memory') {
-            text = `${lessonNum}${lesson.title}. ${lesson.question}`;
-        }
-
-        const timer = setTimeout(() => speak(text, true), 600);
-        return () => clearTimeout(timer);
-    }, [currentLessonIndex, activeModule]);
+    useEffect(() => { goNextRef.current = goNext; });
 
     // ── NAVEGACIÓN CON TECLADO (flechas) ────────────────────────────────────
     useEffect(() => {
-        const handleNavigationKeys = (e) => {
-            const currentType = activeModule?.lessons[currentLessonIndex]?.type;
-            if (currentType === 'memory') return;
+        if (!activeModule || finished) return;
+
+        const onKeyDown = (e) => {
+            if (lesson?.type === 'memory') return;
 
             if (e.key === 'ArrowRight') {
                 e.preventDefault();
-
-                const isPassthrough = currentType === 'info' || currentType === 'vowel_learning';
+                const isPassthrough = PASSTHROUGH.has(lesson?.type);
 
                 if (isPassthrough || feedback) {
-                    if (currentLessonIndex < activeModule.lessons.length - 1) {
-                        setCurrentLessonIndex(c => c + 1);
-                        setFeedback(null);
-                        skipAttemptRef.current = false;
-                    } else {
-                        handleFinishModule();
-                    }
+                    goNext();
+                } else if (!skipAttemptRef.current) {
+                    skipAttemptRef.current = true;
+                    speak('Presiona de nuevo para saltar este ejercicio.');
+                    clearTimeout(skipTimerRef.current);
+                    skipTimerRef.current = setTimeout(() => { skipAttemptRef.current = false; }, 3000);
                 } else {
-                    if (!skipAttemptRef.current) {
-                        skipAttemptRef.current = true;
-                        speak('Presiona de nuevo para saltar este ejercicio.');
-                        clearTimeout(skipTimerRef.current);
-                        skipTimerRef.current = setTimeout(() => {
-                            skipAttemptRef.current = false;
-                        }, 3000);
-                    } else {
-                        speak('Saltando ejercicio.', true);
-                        clearTimeout(skipTimerRef.current);
-                        skipAttemptRef.current = false;
-                        if (currentLessonIndex < activeModule.lessons.length - 1) {
-                            setCurrentLessonIndex(c => c + 1);
-                            setFeedback(null);
-                        } else {
-                            handleFinishModule();
-                        }
-                    }
+                    speak('Saltando ejercicio.', true);
+                    clearTimeout(skipTimerRef.current);
+                    goNext();
                 }
             }
 
-            if (e.key === 'ArrowLeft') {
-                if (currentLessonIndex > 0) {
-                    e.preventDefault();
-                    setCurrentLessonIndex(c => c - 1);
-                    setFeedback(null);
-                    skipAttemptRef.current = false;
-                }
+            if (e.key === 'ArrowLeft' && stepIndex > 0) {
+                e.preventDefault();
+                goBack();
             }
         };
 
-        window.addEventListener('keydown', handleNavigationKeys);
+        window.addEventListener('keydown', onKeyDown);
         return () => {
-            window.removeEventListener('keydown', handleNavigationKeys);
+            window.removeEventListener('keydown', onKeyDown);
             clearTimeout(skipTimerRef.current);
         };
-    }, [feedback, currentLessonIndex, activeModule]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeModule, finished, feedback, stepIndex, lesson]);
 
-    // ── VERIFICACIÓN DE RESPUESTAS ────────────────────────────────────────────
-    const handleVerification = (isCorrect, descriptionText) => {
-        const resultText = isCorrect ? '¡Es Correcto!' : 'Es Incorrecto.';
-        const finalText  = `${descriptionText} ${resultText}`;
-
-        if (isCorrect) {
-            setFeedback('correct');
-            if (!isMuted) playNav(NOTES.CORRECT);
-        } else {
-            setFeedback('incorrect');
-            if (!isMuted) playNav(NOTES.INCORRECT);
+    // ── VERIFICACIÓN DE RESPUESTAS ───────────────────────────────────────────
+    const handleVerification = (isCorrect, description, explanation = '') => {
+        if (lesson && !answeredRef.current.has(lesson.id)) {
+            answeredRef.current.add(lesson.id);
+            setScore((s) => ({ questions: s.questions + 1, correct: s.correct + (isCorrect ? 1 : 0) }));
         }
 
-        speak(finalText, true);
+        const headline = isCorrect
+            ? CORRECT_HEADLINES[Math.floor(Math.random() * CORRECT_HEADLINES.length)]
+            : 'Casi. Inténtalo otra vez';
+        const message = [description, explanation].filter(Boolean).join(' ');
+
+        setFeedback({ status: isCorrect ? 'correct' : 'incorrect', headline, message });
+        if (!isMuted) playNav(isCorrect ? NOTES.CORRECT : NOTES.INCORRECT);
+        speak(`${headline}${/[.!?]$/.test(headline) ? '' : '.'} ${message}`, true);
     };
 
-    // ── RENDERIZADO DE LA LECCIÓN ACTIVA ─────────────────────────────────────
-    const renderLessonContent = () => {
-        const lesson = activeModule.lessons[currentLessonIndex];
-
+    // ── RENDER DE CADA TIPO DE PASO ──────────────────────────────────────────
+    const renderLesson = () => {
         switch (lesson.type) {
             case 'info':
                 return <LessonInfo {...lesson} />;
-
             case 'vowel_learning':
                 return <LessonVowel {...lesson} />;
-
+            case 'explore':
+                return <LessonExplore {...lesson} />;
+            case 'check':
+                return <LessonCheck lesson={lesson} feedback={feedback} onVerify={handleVerification} />;
             case 'builder':
             case 'mini_drill':
-                return (
-                    <LessonBuilder
-                        lesson={lesson}
-                        onVerify={handleVerification}
-                    />
-                );
-
+                return <LessonBuilder lesson={lesson} onVerify={handleVerification} />;
             case 'quiz':
                 return <LessonQuiz lesson={lesson} onVerify={handleVerification} />;
-
             case 'true_false':
                 return <LessonTrueFalse lesson={lesson} onVerify={handleVerification} />;
-
             case 'memory':
                 return (
                     <MemoryGame
                         onComplete={() => {
                             speak('¡Excelente! Has completado el memorama.', true);
+                            const atStep = stepIndex;
                             setTimeout(() => {
-                                if (currentLessonIndex < activeModule.lessons.length - 1) {
-                                    setCurrentLessonIndex(c => c + 1);
-                                    setFeedback(null);
-                                } else {
-                                    handleFinishModule();
-                                }
+                                if (atStep === stepIndex) goNextRef.current();
                             }, 2000);
                         }}
                         playSuccess={() => !isMuted && playNav(NOTES.CORRECT)}
                         playError={() => !isMuted && playNav(NOTES.INCORRECT)}
                         speakText={speak}
-                        onExit={handleMemoryExit}
+                        onExit={exitLesson}
                     />
                 );
-
             default:
                 return (
-                    <p className="text-red-500" role="alert">
-                        Error: Tipo de lección no reconocido ({lesson.type})
+                    <p className="text-oops" role="alert">
+                        Error: tipo de paso no reconocido ({lesson.type})
                     </p>
                 );
         }
     };
 
-    // ── MENÚ DE MÓDULOS ───────────────────────────────────────────────────────
+    // ── CAMINO DE MÓDULOS ────────────────────────────────────────────────────
     if (!activeModule) {
+        return <CoursePath modules={COURSES_DATA} onStart={openModule} />;
+    }
+
+    // ── MÓDULO TERMINADO ─────────────────────────────────────────────────────
+    if (finished) {
+        const nextModule = COURSES_DATA.find((m) => m.id === activeModule.id + 1);
         return (
-            <CourseMenu
-                modules={COURSES_DATA}
-                onSelect={openModule}
-                highContrast={highContrast}
-            />
+            <div className="page flex flex-col items-center gap-8 text-center">
+                <div className="pop mt-2" aria-hidden="true">
+                    <Braulio mood="celebrate" size={230} />
+                </div>
+
+                <div className="flex flex-col gap-3">
+                    <h1 tabIndex={-1} ref={headingRef} className="text-4xl md:text-5xl">
+                        ¡Terminaste el módulo!
+                    </h1>
+                    <p className="text-xl text-ink-soft">
+                        {moduleName(activeModule.title)} · {activeModule.subtitle}
+                    </p>
+                </div>
+
+                <GuideNote className="max-w-lg text-left">
+                    {score.questions > 0 ? `${scoreSentence(score)} ` : ''}
+                    Cada paso que das hace que el Braille se sienta más tuyo.
+                </GuideNote>
+
+                <div className="flex w-full max-w-md flex-col gap-3">
+                    {nextModule && (
+                        <button
+                            type="button"
+                            className="btn btn-primary btn-lg btn-block"
+                            onClick={() => openModule(nextModule, 0)}
+                        >
+                            Seguir con el {nextModule.title.split(':')[0]}
+                            <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                    )}
+                    <button type="button" className="btn btn-secondary btn-lg btn-block" onClick={exitLesson}>
+                        Volver al camino
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-ghost btn-block"
+                        onClick={() => openModule(COURSES_DATA.find((m) => m.id === activeModule.id), 0)}
+                    >
+                        <RotateCcw className="h-5 w-5" aria-hidden="true" />
+                        Repetir este módulo
+                    </button>
+                </div>
+            </div>
         );
     }
 
-    // ── LECCIÓN ACTIVA ────────────────────────────────────────────────────────
+    // ── LECCIÓN ACTIVA ───────────────────────────────────────────────────────
+    const chapters = getChapterRanges(activeModule);
+    const chapterIndex = chapterIndexOfStep(activeModule, stepIndex);
+    const chapter = chapters.length > 1
+        ? { index: chapterIndex, total: chapters.length, title: chapters[chapterIndex]?.title }
+        : null;
+
     return (
-        <section
-            className={`min-h-screen ${bgClass} pt-24 px-6 flex flex-col items-center animate-fadeIn transition-colors duration-300`}
+        <LessonPlayer
+            title={lesson.title}
+            headingRef={headingRef}
+            chapter={chapter}
+            step={{ index: stepIndex, total }}
+            feedback={feedback}
+            isExercise={!PASSTHROUGH.has(lesson.type)}
+            hideActions={lesson.type === 'memory'}
+            canGoBack={stepIndex > 0}
+            isLast={stepIndex === total - 1}
+            onExit={exitLesson}
+            onBack={goBack}
+            onNext={goNext}
+            onSkip={goNext}
+            onRetry={() => setFeedback(null)}
+            onReplay={narrate}
+            onOpenPanel={onOpenPanel}
         >
-            <div className="w-full max-w-4xl">
-
-                <div className="flex justify-between items-center mb-8">
-                    <button
-                        onClick={() => { setActiveModule(null); window.speechSynthesis.cancel(); }}
-                        aria-label="Volver al mapa de módulos"
-                        className={`flex items-center font-bold transition-colors text-lg focus:outline-none focus:ring-4 focus:ring-blue-300 rounded-lg px-2 py-1 ${highContrast ? 'text-yellow-300 hover:text-white' : 'text-gray-500 hover:text-blue-600'}`}
-                    >
-                        <ChevronLeft className="w-6 h-6 mr-1" aria-hidden="true" /> Mapa
-                    </button>
-
-                    <div
-                        className={`px-4 py-1 rounded-full ${highContrast ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600'}`}
-                        aria-label={`Lección ${currentLessonIndex + 1} de ${activeModule.lessons.length}`}
-                    >
-                        <span className="font-bold font-mono">
-                            {currentLessonIndex + 1} / {activeModule.lessons.length}
-                        </span>
-                    </div>
-                </div>
-
-                <div
-                    className={`${cardBgClass} rounded-3xl p-8 md:p-12 shadow-inner text-center min-h-[550px] flex flex-col items-center justify-center relative transition-all`}
-                >
-                    <h2
-                        ref={lessonContainerRef}
-                        tabIndex="-1"
-                        className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-8 outline-none"
-                    >
-                        {activeModule.lessons[currentLessonIndex].title}
-                    </h2>
-
-                    {renderLessonContent()}
-
-                    {feedback && (
-                        <div
-                            role="alert"
-                            aria-live="assertive"
-                            className={`mt-8 px-8 py-4 rounded-xl text-xl font-bold animate-bounce shadow-md ${
-                                feedback === 'correct'
-                                    ? 'bg-green-100 text-green-700 border border-green-200'
-                                    : 'bg-red-100 text-red-700 border border-red-200'
-                            }`}
-                        >
-                            {feedback === 'correct'
-                                ? '🎉 ¡Correcto! Muy bien.'
-                                : '❌ No es correcto. Intenta de nuevo.'}
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex justify-between mt-8 mb-12">
-                    <button
-                        disabled={currentLessonIndex === 0}
-                        onClick={() => { setCurrentLessonIndex(c => c - 1); setFeedback(null); }}
-                        aria-label="Lección anterior"
-                        className="px-6 py-3 bg-gray-200 text-gray-600 rounded-xl font-bold disabled:opacity-50 hover:bg-gray-300 transition-colors focus:outline-none focus:ring-4 focus:ring-gray-300"
-                    >
-                        Anterior
-                    </button>
-
-                    {currentLessonIndex < activeModule.lessons.length - 1 ? (
-                        <button
-                            onClick={() => { setCurrentLessonIndex(c => c + 1); setFeedback(null); }}
-                            aria-label="Siguiente lección"
-                            className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg transition-colors flex items-center gap-2 focus:outline-none focus:ring-4 focus:ring-blue-300"
-                        >
-                            Siguiente <ChevronRight className="w-5 h-5" aria-hidden="true" />
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleFinishModule}
-                            aria-label="Finalizar módulo"
-                            className="px-8 py-3 bg-yellow-400 text-gray-900 rounded-xl font-bold hover:bg-yellow-500 shadow-lg transition-colors flex items-center gap-2 focus:outline-none focus:ring-4 focus:ring-yellow-300"
-                        >
-                            Finalizar Módulo <CheckCircle className="w-5 h-5" aria-hidden="true" />
-                        </button>
-                    )}
-                </div>
-            </div>
-        </section>
+            {renderLesson()}
+        </LessonPlayer>
     );
 };
 

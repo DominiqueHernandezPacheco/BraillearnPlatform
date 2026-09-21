@@ -1,42 +1,43 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import './index.css';
-// Layout
+// Estructura
 import Header from './components/layout/Header';
-import Footer from './components/layout/Footer';
+import BottomNav from './components/layout/BottomNav';
+import { NAV_ITEMS } from './components/layout/navItems';
 // Secciones
-import Hero from './components/sections/Hero';
-import Quote from './components/sections/Quote';
-import LearningHub from './components/sections/LearningHub';
-import TeamSection from './components/sections/Team';
-import InspirationSection from './components/sections/Inspiration';
-import ChallengeSection from './components/sections/Challenge';
-import SolutionSection from './components/sections/Solution';
-import VisionSection from './components/sections/Vision';
-import FutureWorkSection from './components/sections/FutureWork';
-import TechnicalDetailsSection from './components/sections/TechnicalDetails';
-// Features
-import SimulatorSection from './components/features/Simulator/SimulatorSection';
+import Home from './components/features/Home/Home';
 import CourseSection from './components/features/Courses/CourseSection';
+import MessagesSection from './components/features/Messages/MessagesSection';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import AccessibilityPanel from './components/features/AccessibilityPanel/AccessibilityPanel';
 import OnboardingTour from './components/features/Onboarding/OnboardingTour';
 import VoiceAssistantIndicator from './components/features/VoiceAssistant/VoiceAssistantIndicator';
-// Contexto de accesibilidad
+// Contextos y hooks
 import { useAccessibility } from './context/AccessibilityContext';
 import { useAudio } from './context/AudioContext';
 import { useProgress } from './hooks/useProgress';
 import useVoiceAssistant from './hooks/useVoiceAssistant';
 import { matchLocalIntent } from './utils/voiceIntents';
+import { PHRASES, NAV_CONFIRMATIONS } from './utils/assistantPhrases';
 
-const NAV_CONFIRMATIONS = {
-  plataforma: 'Listo, aquí tienes el inicio.',
-  cursos: 'Listo, aquí tienes tus cursos.',
-  simulador: 'Listo, aquí tienes el simulador.',
-  proyecto: 'Listo, aquí tienes información del proyecto.',
+const PAGE_TITLES = {
+  plataforma: 'Inicio',
+  cursos: 'Cursos',
+  mensajes: 'Mensajes',
 };
 
 // Mismos pasos que usa AccessibilityContext para fontScale
 const FONT_SCALES = [0.875, 1, 1.125, 1.25];
+
+// ── Rutas: cada sección tiene su propia URL (#/cursos), así funcionan el
+// botón "atrás" del navegador y los enlaces directos. ─────────────────────
+const PAGE_BY_SLUG = { inicio: 'plataforma', cursos: 'cursos', mensajes: 'mensajes' };
+const HASH_BY_PAGE = Object.fromEntries(NAV_ITEMS.map((item) => [item.page, item.hash]));
+
+const pageFromHash = () => {
+  const slug = window.location.hash.replace(/^#\/?/, '').split('/')[0];
+  return PAGE_BY_SLUG[slug] || 'plataforma';
+};
 
 // Fase 2b: pregunta abierta -> Claude. Dentro de Electron le habla directo
 // al proceso principal por IPC (la API key vive ahí). En el navegador
@@ -52,33 +53,70 @@ async function askClaude(text, context) {
     body: JSON.stringify({ text, context }),
   });
   if (!res.ok) {
-    throw new Error(`El servidor de Braulio respondió ${res.status} — ¿está corriendo "npm run server"?`);
+    // El servidor manda el motivo en { error } (p. ej. clave de Claude inválida).
+    const detail = await res.json().then((d) => d?.error, () => undefined);
+    throw new Error(detail || `El servidor de Braulio respondió ${res.status} — ¿está corriendo "npm run server"?`);
   }
   return res.json();
 }
 
+// Si Claude tarda más que esto en contestar, Braulio dice "Un momento".
+const THINKING_DELAY_MS = 900;
+
+// Cuando Claude rechaza la clave (401) no tiene caso pedir "inténtalo de nuevo":
+// Braulio lo dice claro, y los comandos locales ("ir a cursos") siguen sirviendo.
+const isAuthError = (message) => /authentication|invalid x-api-key|api key is invalid|\b401\b/i.test(String(message));
+
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('plataforma');
+  const [currentPage, setCurrentPage] = useState(pageFromHash);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [openModuleRequest, setOpenModuleRequest] = useState(null);
+  const mainRef = useRef(null);
+  const isFirstRender = useRef(true);
 
-  // highContrast viene del contexto — ya no es estado local.
-  // Header y CourseSection lo leen desde aquí para no romper su interfaz actual.
   const {
-    highContrast, fontScale, setFontScale, setHighContrast, setReduceMotion,
+    fontScale, setFontScale, setHighContrast, setReduceMotion,
   } = useAccessibility();
-  const { speak } = useAudio();
+  const { speak, stop, beginAssistantTurn, endAssistantTurn } = useAudio();
   const { lastLesson } = useProgress();
 
-  const handleNav = useCallback((page, anchor) => {
-    window.speechSynthesis.cancel();
-    setCurrentPage(page);
-    setTimeout(() => {
-      const element = document.getElementById(anchor);
-      if (element) element.scrollIntoView({ behavior: 'smooth' });
-      else window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 100);
+  // El botón "atrás" (o un enlace #/cursos) cambia la sección.
+  useEffect(() => {
+    const onHashChange = () => setCurrentPage(pageFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  // Al cambiar de sección: título de la pestaña, arriba del todo y foco en el
+  // encabezado principal — así un lector de pantalla anuncia dónde estás.
+  useEffect(() => {
+    document.title = `${PAGE_TITLES[currentPage]} · Braillearn`;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0 });
+    const heading = mainRef.current?.querySelector('h1');
+    if (heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
+    }
+  }, [currentPage]);
+
+  // (page, anchor): el segundo argumento ya no hace falta, se acepta por
+  // compatibilidad con el enrutador de voz.
+  const handleNav = useCallback((page) => {
+    stop();
+    setCurrentPage(page);
+    const hash = HASH_BY_PAGE[page];
+    if (hash && window.location.hash !== hash) window.location.hash = hash;
+  }, [stop]);
+
+  const skipToContent = (e) => {
+    e.preventDefault();
+    mainRef.current?.focus();
+    mainRef.current?.scrollIntoView();
+  };
 
   // Traduce el `destination` que puede pedir Claude (ver electron/claude/
   // claudeService.cjs -> NAVIGATE_TOOL) a una navegación real. Comparte
@@ -87,23 +125,18 @@ export default function App() {
     const MODULE_BY_DESTINATION = { 'modulo-1': 1, 'modulo-2': 2, 'modulo-3': 3 };
 
     if (destination === 'ultima-leccion') {
-      handleNav('cursos', 'cursos-top');
+      handleNav('cursos');
       if (lastLesson) setOpenModuleRequest({ moduleId: lastLesson, requestedAt: Date.now() });
       return;
     }
     if (destination in MODULE_BY_DESTINATION) {
-      handleNav('cursos', 'cursos-top');
+      handleNav('cursos');
       setOpenModuleRequest({ moduleId: MODULE_BY_DESTINATION[destination], requestedAt: Date.now() });
       return;
     }
-    const PAGE_BY_DESTINATION = {
-      inicio: ['plataforma', 'inicio'],
-      cursos: ['cursos', 'cursos-top'],
-      simulador: ['simulador', 'simulador-top'],
-      proyecto: ['proyecto', 'acerca'],
-    };
-    const target = PAGE_BY_DESTINATION[destination];
-    if (target) handleNav(target[0], target[1]);
+    const PAGE_BY_DESTINATION = { inicio: 'plataforma', cursos: 'cursos', mensajes: 'mensajes' };
+    const page = PAGE_BY_DESTINATION[destination];
+    if (page) handleNav(page);
   }, [handleNav, lastLesson]);
 
   // Igual que applyNavigateTo, pero para ajustes de accesibilidad — usado
@@ -139,117 +172,143 @@ export default function App() {
     }
   }, [fontScale, setFontScale, setHighContrast, setReduceMotion]);
 
+  // Lo que dice el asistente al responder: prioritario, no lo retiene el turno.
+  const say = useCallback((text) => speak(text, true, { priority: true }), [speak]);
+
   // ── Fase 2: qué hacer con lo que "Braulio" capturó ──────────────────────
-  const handleVoiceCommand = useCallback(async (transcript) => {
+  const runVoiceCommand = useCallback(async (transcript) => {
     if (!transcript) {
-      speak('No escuché nada, inténtalo de nuevo.', true);
+      say(PHRASES.noSpeech);
       return;
     }
 
     const intent = matchLocalIntent(transcript);
 
     if (intent?.type === 'navigate') {
-      handleNav(intent.page, intent.anchor);
-      speak(NAV_CONFIRMATIONS[intent.page] || 'Listo.', true);
+      handleNav(intent.page);
+      say(NAV_CONFIRMATIONS[intent.page] || PHRASES.ok);
       return;
     }
 
     if (intent?.type === 'open-accessibility-panel') {
       setIsPanelOpen(true);
-      speak('Aquí tienes el panel de accesibilidad.', true);
+      say(PHRASES.panel);
       return;
     }
 
     if (intent?.type === 'open-last-lesson') {
       if (!lastLesson) {
-        handleNav('cursos', 'cursos-top');
-        speak('Todavía no tienes ninguna lección guardada. Aquí están tus cursos.', true);
+        handleNav('cursos');
+        say(PHRASES.noLesson);
         return;
       }
-      handleNav('cursos', 'cursos-top');
+      handleNav('cursos');
       setOpenModuleRequest({ moduleId: lastLesson, requestedAt: Date.now() });
-      speak('Retomando tu última lección.', true);
+      say(PHRASES.resumeLesson);
       return;
     }
 
     if (intent?.type === 'open-module') {
-      handleNav('cursos', 'cursos-top');
+      handleNav('cursos');
       setOpenModuleRequest({ moduleId: intent.moduleId, requestedAt: Date.now() });
-      speak('Listo, abriendo ese módulo.', true);
+      say(PHRASES.openModule);
       return;
     }
 
     if (intent?.type === 'set-accessibility') {
       applyAccessibilitySetting(intent.setting);
-      speak('Listo, ajustado.', true);
+      say(PHRASES.adjusted);
       return;
     }
 
     // Fase 2b: nada local matcheó — se manda como pregunta abierta a Claude
     // (en Electron, directo por IPC; en el navegador, vía el servidor local).
+    // Claude puede tardar unos segundos: si la respuesta no llega enseguida,
+    // Braulio avisa que está pensando en vez de dejar el silencio.
+    const thinkingTimer = setTimeout(() => say(PHRASES.thinking), THINKING_DELAY_MS);
     try {
       const result = await askClaude(transcript, { currentPage });
+      clearTimeout(thinkingTimer);
       if (result?.error) {
         console.error('[Braulio] Error de Claude:', result.error);
-        speak('Tuve un problema para responder eso, inténtalo de nuevo.', true);
+        say(isAuthError(result.error) ? PHRASES.authError : PHRASES.genericError);
         return;
       }
       for (const action of result?.actions || []) {
         if (action.tool === 'navigate_app') applyNavigateTo(action.input?.destination);
         else if (action.tool === 'set_accessibility') applyAccessibilitySetting(action.input?.setting);
       }
-      speak(result?.text || 'Listo.', true);
+      say(result?.text || PHRASES.ok);
     } catch (err) {
+      clearTimeout(thinkingTimer);
       console.error('[Braulio] Error llamando a Claude:', err);
-      speak('Tuve un problema para responder eso, inténtalo de nuevo.', true);
+      say(isAuthError(err?.message) ? PHRASES.authError : PHRASES.genericError);
     }
-  }, [speak, handleNav, lastLesson, currentPage, applyNavigateTo, applyAccessibilitySetting]);
+  }, [say, handleNav, lastLesson, currentPage, applyNavigateTo, applyAccessibilitySetting]);
 
-  const { status, lastCommand, mode, triggerManually } = useVoiceAssistant(handleVoiceCommand);
+  // Hablarle a Braulio pausa la narración en curso; al terminar (respuesta o
+  // acción) la lección continúa donde iba.
+  const handleVoiceCommand = useCallback(async (transcript) => {
+    beginAssistantTurn();
+    try {
+      await runVoiceCommand(transcript);
+    } finally {
+      endAssistantTurn();
+    }
+  }, [runVoiceCommand, beginAssistantTurn, endAssistantTurn]);
+
+const { status, lastCommand, mode, triggerManually } = useVoiceAssistant(handleVoiceCommand);
+
+  // Si te escuchó pero no hubo comando (silencio, o el micrófono se cortó),
+  // el turno termina solo y la lección continúa.
+  const prevStatus = useRef('idle');
+  useEffect(() => {
+    if (prevStatus.current === 'listening' && status === 'idle') endAssistantTurn();
+    prevStatus.current = status;
+  }, [status, endAssistantTurn]);
 
   return (
-    <div className={`font-sans bg-gray-50 ${highContrast ? 'high-contrast' : ''}`}>
+    <div className="min-h-dvh bg-page text-ink">
+      <a href="#main" className="skip-link" onClick={skipToContent}>
+        Saltar al contenido
+      </a>
+
       <Header
+        currentPage={currentPage}
         handleNav={handleNav}
         onOpenPanel={() => setIsPanelOpen(true)}
         isPanelOpen={isPanelOpen}
       />
 
-      <main>
+      <main id="main" ref={mainRef} tabIndex={-1} className="outline-none">
         {currentPage === 'plataforma' && (
-          <div className="scroll-container active">
-            <Hero />
-            <Quote />
-            <LearningHub onNavigateToCourses={() => handleNav('cursos', 'cursos-top')} />
-          </div>
+          <Home
+            handleNav={handleNav}
+            onOpenModule={(moduleId) => {
+              handleNav('cursos');
+              setOpenModuleRequest({ moduleId, requestedAt: Date.now() });
+            }}
+          />
         )}
 
         {currentPage === 'cursos' && (
-          <div className="scroll-container active">
-            <ErrorBoundary>
-              <CourseSection highContrast={highContrast} openModuleRequest={openModuleRequest} />
-            </ErrorBoundary>
-          </div>
+          <ErrorBoundary>
+            <CourseSection
+              openModuleRequest={openModuleRequest}
+              onRequestHandled={() => setOpenModuleRequest(null)}
+              onOpenPanel={() => setIsPanelOpen(true)}
+            />
+          </ErrorBoundary>
         )}
 
-        {currentPage === 'proyecto' && (
-          <div className="scroll-container active">
-            <TeamSection />
-            <InspirationSection />
-            <ChallengeSection />
-            <SolutionSection />
-            <VisionSection />
-            <FutureWorkSection />
-            <TechnicalDetailsSection />
-          </div>
-        )}
-
-        {currentPage === 'simulador' && (
-          <div className="scroll-container active">
-            <SimulatorSection />
-          </div>
+        {currentPage === 'mensajes' && (
+          <ErrorBoundary>
+            <MessagesSection />
+          </ErrorBoundary>
         )}
       </main>
+
+      <BottomNav currentPage={currentPage} handleNav={handleNav} />
 
       {/* Panel de accesibilidad: siempre montado, animado con CSS */}
       <AccessibilityPanel
@@ -260,7 +319,7 @@ export default function App() {
       {/* Recorrido guiado: se muestra solo si el usuario es nuevo o no lo ha terminado */}
       <OnboardingTour />
 
-      {/* Asistente de voz "Braulio": wake word + comandos de navegación */}
+      {/* Asistente de voz "Braulio": wake word + comandos */}
       <VoiceAssistantIndicator
         status={status}
         lastCommand={lastCommand}

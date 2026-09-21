@@ -1,18 +1,18 @@
 import React, { useEffect } from 'react';
+import { Check, X } from 'lucide-react';
 import { braillePatterns } from '../../../../constants/braillePatterns';
-import BrailleCell from '../../../common/BrailleCell';
-// NUEVO: Importamos el servicio de conexión
+import TactileCell from '../../../common/TactileCell';
 import { brailleService } from '../../../../utils/brailleService';
 
 const LessonTrueFalse = ({ lesson, onVerify }) => {
 
-    // NUEVO: Enviar el patrón al hardware en cuanto cargue la pregunta
+    // Enviar el patrón al hardware en cuanto cargue la pregunta
     useEffect(() => {
         if (lesson && lesson.displayChar) {
             brailleService.sendText(lesson.displayChar).then(respuesta => {
-                console.log(`🤖 True/False - Reto enviado [ ${lesson.displayChar.toUpperCase()} ]. Respuesta:`, respuesta);
+                console.log(`True/False - Reto enviado [ ${lesson.displayChar.toUpperCase()} ]. Respuesta:`, respuesta);
             }).catch(error => {
-                console.error(`🚨 Error al enviar el reto [ ${lesson.displayChar.toUpperCase()} ]:`, error);
+                console.error(`Error al enviar el reto [ ${lesson.displayChar.toUpperCase()} ]:`, error);
             });
         }
     }, [lesson]);
@@ -21,22 +21,18 @@ const LessonTrueFalse = ({ lesson, onVerify }) => {
         const isCorrect   = choice === lesson.isCorrect;
         const description = `Elegiste ${choice ? 'Verdadero' : 'Falso'}.`;
 
-        // NUEVO: Enviar la retroalimentación física (SI/NO)
+        // Retroalimentación física en el display (SI/NO)
         const feedbackFisico = isCorrect ? "SI" : "NO";
         brailleService.sendText(feedbackFisico).then(respuesta => {
-            console.log(`🤖 True/False - Feedback enviado [ ${feedbackFisico} ]. Respuesta:`, respuesta);
+            console.log(`True/False - Feedback enviado [ ${feedbackFisico} ]. Respuesta:`, respuesta);
         }).catch(error => {
-            console.error(`🚨 Error al enviar feedback [ ${feedbackFisico} ]:`, error);
+            console.error(`Error al enviar feedback [ ${feedbackFisico} ]:`, error);
         });
 
         onVerify(isCorrect, description);
     };
 
-    // Atajos de teclado:
-    //   V → Verdadero (verdad)
-    //   F → Falso
-    //   1 → Verdadero
-    //   2 → Falso
+    // Atajos de teclado:  V o 1 → Verdadero · F o 2 → Falso
     useEffect(() => {
         const handleKey = (e) => {
             const tag = document.activeElement?.tagName;
@@ -49,46 +45,41 @@ const LessonTrueFalse = ({ lesson, onVerify }) => {
 
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lesson]);
 
     return (
-        <div className="flex flex-col items-center w-full animate-fadeIn">
-            <p className="text-2xl font-medium mb-8 text-gray-700">{lesson.question}</p>
+        <div className="flex flex-col gap-8">
+            <p className="text-2xl font-bold leading-snug text-ink md:text-[1.75rem]">{lesson.question}</p>
 
-            <div className="bg-white p-6 rounded-2xl shadow-lg mb-8 border-2 border-gray-100">
-                <BrailleCell
-                    dots={braillePatterns[lesson.displayChar]}
-                    size="large"
-                    isInteractive={false}
-                />
+            <div className="card dots-grid flex justify-center px-6 py-8">
+                <TactileCell dots={braillePatterns[lesson.displayChar]} size={190} showNumbers />
             </div>
 
-            {/* Instrucción de atajo */}
-            <p className="text-sm text-gray-400 mb-4">
-                Atajo:{' '}
-                <kbd className="bg-gray-100 px-2 py-0.5 rounded border text-xs">V</kbd> Verdadero
-                {' · '}
-                <kbd className="bg-gray-100 px-2 py-0.5 rounded border text-xs">F</kbd> Falso
-            </p>
-
-            <div className="flex gap-6 w-full max-w-md justify-center">
+            <div role="group" aria-label="Elige una respuesta" className="grid grid-cols-2 gap-3">
                 <button
+                    type="button"
                     onClick={() => handleChoice(true)}
                     aria-label="Verdadero. Atajo: tecla V o 1."
-                    className="flex-1 py-4 bg-green-100 text-green-700 border-2 border-green-200 rounded-xl font-bold text-xl hover:bg-green-500 hover:text-white transition-all focus:outline-none focus:ring-4 focus:ring-green-300 relative"
+                    className="btn btn-secondary btn-lg relative min-h-[4.5rem]"
                 >
+                    <Check className="h-6 w-6" strokeWidth={3.5} aria-hidden="true" />
                     Verdadero
-                    <span className="absolute top-1 right-2 text-xs font-normal text-gray-400" aria-hidden="true">V</span>
                 </button>
                 <button
+                    type="button"
                     onClick={() => handleChoice(false)}
                     aria-label="Falso. Atajo: tecla F o 2."
-                    className="flex-1 py-4 bg-red-100 text-red-700 border-2 border-red-200 rounded-xl font-bold text-xl hover:bg-red-500 hover:text-white transition-all focus:outline-none focus:ring-4 focus:ring-red-300 relative"
+                    className="btn btn-secondary btn-lg relative min-h-[4.5rem]"
                 >
+                    <X className="h-6 w-6" strokeWidth={3.5} aria-hidden="true" />
                     Falso
-                    <span className="absolute top-1 right-2 text-xs font-normal text-gray-400" aria-hidden="true">F</span>
                 </button>
             </div>
+
+            <p className="text-base text-ink-soft">
+                Atajos: <span className="kbd">V</span> verdadero · <span className="kbd">F</span> falso
+            </p>
         </div>
     );
 };

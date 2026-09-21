@@ -47,16 +47,16 @@ const NAVIGATE_TOOL = {
                 enum: [
                     'inicio',
                     'cursos',
-                    'simulador',
-                    'proyecto',
+                    'mensajes',
                     'ultima-leccion',
                     'modulo-1',
                     'modulo-2',
                     'modulo-3',
                 ],
                 description:
-                    'inicio=página principal, cursos=mapa de módulos, simulador=simulador de Braille, ' +
-                    'proyecto=info del proyecto, ultima-leccion=retomar donde se quedó, ' +
+                    'inicio=página principal, cursos=camino de módulos, ' +
+                    'mensajes=donde un familiar escribe un mensaje que llega al display Braille, ' +
+                    'ultima-leccion=retomar donde se quedó, ' +
                     'modulo-1=Introducción, modulo-2=Las Vocales, modulo-3=Retos.',
             },
         },

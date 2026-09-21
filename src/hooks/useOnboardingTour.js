@@ -6,35 +6,43 @@ import { useUser } from '../context/UserContext';
 const STEPS = [
     {
         selector: null,
-        title: '¡Hola! Bienvenido a Braillearn',
-        body: 'Te voy a mostrar las zonas principales de la plataforma en 5 pasos rápidos. Puedes saltarlo cuando quieras.',
+        title: '¡Hola! Soy Braulio',
+        body: 'Te voy a mostrar la plataforma en unos pasos rápidos. Puedes saltarlo cuando quieras.',
     },
     {
         selector: '[data-tour="nav-cursos"]',
         title: 'Tus cursos',
-        body: 'Aquí están tus lecciones de Braille, organizadas paso a paso desde el abecedario hasta ejercicios más avanzados.',
+        body: 'Aquí están tus lecciones de Braille, paso a paso: primero cómo funciona, después las letras y al final los retos.',
     },
     {
-        selector: '[data-tour="nav-simulador"]',
-        title: 'Simulador de Braille',
-        body: 'Aquí puedes escribir cualquier texto y sentir, con sonido, cómo se arma cada celda Braille.',
+        selector: '[data-tour="nav-mensajes"]',
+        title: 'Mensajes',
+        body: 'Aquí un familiar puede escribir un mensaje y enviarlo al display Braille para que lo leas con los dedos.',
     },
     {
         selector: '[data-tour="learning-progress"]',
         title: 'Tu progreso',
-        body: 'Aquí ves cuánto llevas avanzado y puedes continuar justo donde te quedaste.',
+        body: 'Aquí ves cuánto llevas y puedes continuar justo donde te quedaste.',
     },
     {
         selector: '[data-tour="a11y-button"]',
-        title: 'Panel de accesibilidad',
-        body: 'Aquí ajustas el contraste, el tamaño de letra, la velocidad de voz y más, cuando lo necesites.',
+        title: 'Accesibilidad',
+        body: 'Aquí ajustas el contraste, el tamaño de letra, la velocidad de mi voz y más, cuando lo necesites.',
     },
     {
         selector: null,
         title: 'Listo para empezar',
-        body: 'Eso es todo. Puedes volver a ver este recorrido desde el panel de accesibilidad cuando quieras.',
+        body: 'Eso es todo. Y puedes hablarme cuando quieras: di "Braulio" y pídeme lo que necesites. Este recorrido lo puedes repetir desde Accesibilidad.',
     },
 ];
+
+// Hay elementos con el mismo data-tour en el menú de escritorio y en la barra
+// inferior de móvil; solo uno es visible a la vez, así que buscamos el visible.
+const findVisible = (selector) =>
+    [...document.querySelectorAll(selector)].find((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+    }) ?? null;
 
 const useOnboardingTour = () => {
     const { user, hasCompletedOnboarding, completeOnboarding } = useUser();
@@ -59,11 +67,9 @@ const useOnboardingTour = () => {
             setTargetRect(null);
             return;
         }
-        const el = document.querySelector(step.selector);
-        const rect = el ? el.getBoundingClientRect() : null;
-        // Si el elemento está oculto (p. ej. nav de escritorio en vista móvil), mide 0x0 —
-        // lo tratamos como "sin objetivo" para que la tarjeta caiga centrada en vez de mal ubicada.
-        setTargetRect(rect && rect.width > 0 && rect.height > 0 ? rect : null);
+        const el = findVisible(step.selector);
+        // Si ninguno está visible, "sin objetivo": la tarjeta cae centrada en vez de mal ubicada.
+        setTargetRect(el ? el.getBoundingClientRect() : null);
     }, [step]);
 
     useEffect(() => {

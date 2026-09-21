@@ -1,20 +1,30 @@
 // src/utils/iconMap.jsx
 import React from 'react';
-import { BookOpen, UserIcon, TargetIcon, ZapIcon } from '../components/common/Icons';
+import {
+    BookOpen, Hand, Languages, User, School, Sparkles, Grip, Layers, Target, Zap, Star,
+} from 'lucide-react';
 
-// Devuelve el icono correcto basado en el string que venga de los datos (o API)
-export const getIcon = (type, className = "w-16 h-16") => {
-    switch (type) {
-        // Iconos de Módulos
-        case 'book': return <BookOpen className={className} />;
-        case 'star': return <ZapIcon className={className} />;
-        case 'target-module': return <TargetIcon className={className} />;
-        
-        // Iconos de Lecciones
-        case 'book-open': return <BookOpen className={`${className} text-blue-500`} />;
-        case 'user': return <UserIcon className={`${className} text-purple-500`} />;
-        case 'target': return <TargetIcon className={`${className} text-green-500`} />;
-        
-        default: return <BookOpen className={className} />;
-    }
+// Devuelve el icono correcto según el texto (`iconType`) que venga de los
+// datos (o de una API). Siempre decorativo: quien lo usa pone el texto.
+const ICONS = {
+    // Módulos
+    book: BookOpen,
+    star: Zap,
+    'target-module': Target,
+    // Pasos
+    'book-open': BookOpen,
+    hand: Hand,
+    languages: Languages,
+    user: User,
+    school: School,
+    sparkles: Sparkles,
+    grip: Grip,
+    layers: Layers,
+    target: Target,
+    highlight: Star,
+};
+
+export const getIcon = (type, className = "h-8 w-8") => {
+    const Icon = ICONS[type] ?? BookOpen;
+    return <Icon className={className} aria-hidden="true" />;
 };

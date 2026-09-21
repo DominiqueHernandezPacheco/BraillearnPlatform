@@ -1,65 +1,78 @@
 import React, { useEffect } from 'react';
-import { braillePatterns } from '../../../../constants/braillePatterns'; //[cite: 2]
-import BrailleCell from '../../../common/BrailleCell'; //[cite: 2]
-import useBrailleSound from '../../../../hooks/useBrailleSound'; //[cite: 2]
-import { useAudio } from '../../../../context/AudioContext'; //[cite: 2]
-// Asegúrate de ajustar la ruta correcta hacia tu nuevo servicio
-import { brailleService } from '../../../../utils/brailleService'; 
+import { Volume2 } from 'lucide-react';
+import { braillePatterns } from '../../../../constants/braillePatterns';
+import TactileCell from '../../../common/TactileCell';
+import useBrailleSound from '../../../../hooks/useBrailleSound';
+import { useAudio } from '../../../../context/AudioContext';
+import { brailleService } from '../../../../utils/brailleService';
 
 const LessonVowel = ({ char, visualDesc, patternExp }) => {
     const { playPattern } = useBrailleSound();
     const { isMuted } = useAudio();
+    const dots = braillePatterns[char];
 
-    // NUEVO: Efecto para enviar la letra al display físico automáticamente
+    // Envía la letra al display físico automáticamente
     useEffect(() => {
         if (char) {
-            brailleService.sendText(char);
+            brailleService.sendText(char).then((respuesta) => {
+                console.log(`La API respondió para la letra ${char}:`, respuesta);
+            });
         }
     }, [char]);
 
     const play = () => {
         if (!isMuted) {
-            playPattern(braillePatterns[char], char);
+            playPattern(dots, char);
         }
     };
 
+    // Atajo: barra espaciadora reproduce el ritmo (salvo que el foco esté en un botón/campo)
     useEffect(() => {
-        const enviarYRecibir = async () => {
-            if (char) {
-                // Aquí atrapamos lo que la API nos devuelve en la variable 'respuesta'
-                const respuesta = await brailleService.sendText(char);
-                
-                // Lo imprimimos en la consola para que lo puedas ver
-                console.log(` La API respondió para la letra ${char}:`, respuesta);
-            }
+        const onKey = (e) => {
+            if (e.key !== ' ') return;
+            const tag = document.activeElement?.tagName;
+            if (['BUTTON', 'INPUT', 'TEXTAREA', 'A', 'SELECT'].includes(tag)) return;
+            e.preventDefault();
+            play();
         };
-
-        enviarYRecibir();
-    }, [char]);
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [char, isMuted]);
 
     return (
-        <div className="flex flex-col items-center w-full animate-fadeIn">
-            <div className="bg-white p-8 rounded-3xl shadow-xl mb-8 transform transition-transform hover:scale-105">
-                <BrailleCell dots={braillePatterns[char]} size="huge" isInteractive={false}/>
+        <div className="flex flex-col gap-6">
+            <div className="card dots-grid flex flex-col items-center gap-3 px-6 py-6">
+                <TactileCell
+                    dots={dots}
+                    size={170}
+                    showNumbers
+                    label={`Letra ${char.toUpperCase()}. ${patternExp}`}
+                />
+                <p aria-hidden="true" className="font-display text-5xl font-black text-brand-strong">
+                    {char.toUpperCase()}
+                </p>
             </div>
 
-            <div className="bg-white px-8 py-4 rounded-xl shadow-sm border border-gray-200 mb-8 max-w-lg text-center">
-                <p className="text-xl font-medium text-gray-800 mb-2">{visualDesc}</p>
-                <p className="text-gray-500">{patternExp}</p>
+            <div>
+                <p className="text-2xl font-bold leading-snug text-ink">{visualDesc}</p>
+                <p className="mt-1 text-xl text-ink-soft">{patternExp}</p>
             </div>
 
-            <button
-                onClick={play}
-                className="px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 shadow-md transition-all flex items-center gap-2 hover:-translate-y-1 focus:ring-4 focus:ring-blue-300 focus:outline-none"
-                aria-label={`Escuchar el ritmo de la letra ${char}. Atajo: Barra Espaciadora.`}
-            >
-                🔊 Escuchar Ritmo
-            </button>
-
-            <p className="mt-4 text-sm text-gray-500 flex items-center gap-1">
-                <span className="bg-gray-200 px-2 py-1 rounded text-xs font-bold border border-gray-300">Espacio</span>
-                <span>para reproducir</span>
-            </p>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                <button
+                    type="button"
+                    onClick={play}
+                    className="btn btn-blue btn-lg"
+                    aria-label={`Escuchar el ritmo de la letra ${char}. Atajo: barra espaciadora.`}
+                >
+                    <Volume2 className="h-6 w-6" aria-hidden="true" />
+                    Escuchar el ritmo
+                </button>
+                <p className="text-lg text-ink-soft">
+                    <span className="kbd">Espacio</span> para reproducir
+                </p>
+            </div>
         </div>
     );
 };

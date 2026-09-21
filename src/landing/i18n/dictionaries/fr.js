@@ -70,7 +70,7 @@ export default {
         title: 'Apprenez à votre rythme.',
         lead: 'Des leçons en français qui s’adaptent à vous, sans manuels ni formation préalable.',
         previewTitle: 'Aperçu de la plateforme d’apprentissage',
-        previewNote: 'Voici la vraie page d’accueil de la plateforme. La version complète comprend des cours, un simulateur et plus encore.',
+        previewNote: 'Voici la vraie page d’accueil de la plateforme. La version complète comprend des cours, des messages pour l’afficheur braille et plus encore.',
         features: [
             {
                 title: 'De l’alphabet aux mots',

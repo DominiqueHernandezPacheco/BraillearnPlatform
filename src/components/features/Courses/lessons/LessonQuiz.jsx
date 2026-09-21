@@ -1,18 +1,17 @@
 import React, { useEffect } from 'react';
 import { braillePatterns } from '../../../../constants/braillePatterns';
-import BrailleCell from '../../../common/BrailleCell';
-// NUEVO: Importar el servicio
+import TactileCell from '../../../common/TactileCell';
 import { brailleService } from '../../../../utils/brailleService';
 
 const LessonQuiz = ({ lesson, onVerify }) => {
 
-    // NUEVO: Enviar el patrón objetivo al hardware cuando carga la pregunta
+    // Enviar el patrón objetivo al hardware cuando carga la pregunta
     useEffect(() => {
         if (lesson && lesson.targetChar) {
             brailleService.sendText(lesson.targetChar).then(respuesta => {
-                console.log(`🤖 Quiz - Reto enviado [ ${lesson.targetChar.toUpperCase()} ]. Respuesta:`, respuesta);
+                console.log(`Quiz - Reto enviado [ ${lesson.targetChar.toUpperCase()} ]. Respuesta:`, respuesta);
             }).catch(error => {
-                console.error(`🚨 Error al enviar el reto [ ${lesson.targetChar.toUpperCase()} ]:`, error);
+                console.error(`Error al enviar el reto [ ${lesson.targetChar.toUpperCase()} ]:`, error);
             });
         }
     }, [lesson]);
@@ -21,12 +20,12 @@ const LessonQuiz = ({ lesson, onVerify }) => {
         const isCorrect  = option === lesson.targetChar;
         const description = `Elegiste la letra ${option.toUpperCase()}.`;
 
-        // NUEVO: Enviar retroalimentación física (SI/NO)
+        // Retroalimentación física en el display (SI/NO)
         const feedbackFisico = isCorrect ? "SI" : "NO";
         brailleService.sendText(feedbackFisico).then(respuesta => {
-            console.log(`🤖 Quiz - Feedback enviado [ ${feedbackFisico} ]. Respuesta:`, respuesta);
+            console.log(`Quiz - Feedback enviado [ ${feedbackFisico} ]. Respuesta:`, respuesta);
         }).catch(error => {
-            console.error(`🚨 Error al enviar feedback [ ${feedbackFisico} ]:`, error);
+            console.error(`Error al enviar feedback [ ${feedbackFisico} ]:`, error);
         });
 
         onVerify(isCorrect, description);
@@ -48,46 +47,37 @@ const LessonQuiz = ({ lesson, onVerify }) => {
 
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lesson]);
 
     return (
-        <div className="flex flex-col items-center w-full animate-fadeIn">
-            <p className="text-2xl font-medium mb-8 text-gray-700">{lesson.question}</p>
+        <div className="flex flex-col gap-8">
+            <p className="text-2xl font-bold leading-snug text-ink md:text-[1.75rem]">{lesson.question}</p>
 
-            <div className="bg-white p-6 rounded-2xl shadow-lg mb-8 border-2 border-gray-100">
-                <BrailleCell
-                    dots={braillePatterns[lesson.targetChar]}
-                    size="large"
-                    isInteractive={false}
-                />
+            <div className="card dots-grid flex justify-center px-6 py-8">
+                <TactileCell dots={braillePatterns[lesson.targetChar]} size={190} showNumbers />
             </div>
 
-            {/* Instrucción de atajo de teclado */}
-            <p className="text-sm text-gray-400 mb-4">
-                Usa las teclas <kbd className="bg-gray-100 px-2 py-0.5 rounded border text-xs">1</kbd>,{' '}
-                <kbd className="bg-gray-100 px-2 py-0.5 rounded border text-xs">2</kbd>,{' '}
-                <kbd className="bg-gray-100 px-2 py-0.5 rounded border text-xs">3</kbd> o haz clic
-            </p>
-
-            <div className="grid grid-cols-3 gap-4 w-full max-w-md">
+            <div role="group" aria-label="Opciones" className="grid grid-cols-3 gap-3">
                 {lesson.options.map((opt, index) => (
                     <button
                         key={opt}
+                        type="button"
                         onClick={() => handleChoice(opt)}
                         aria-label={`Opción ${index + 1}: letra ${opt.toUpperCase()}. Atajo: tecla ${index + 1}.`}
-                        className="py-4 bg-white border-2 border-blue-100 text-2xl font-bold text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all uppercase shadow-sm transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-blue-300 relative"
+                        className="btn btn-secondary relative min-h-[5rem] flex-col !gap-0 text-4xl uppercase"
                     >
                         {opt}
-                        {/* Indicador visual del atajo */}
-                        <span
-                            className="absolute top-1 right-2 text-xs font-normal text-gray-300"
-                            aria-hidden="true"
-                        >
+                        <span aria-hidden="true" className="kbd absolute right-2 top-2 !min-w-6 !border-b-2 !px-1.5 text-xs">
                             {index + 1}
                         </span>
                     </button>
                 ))}
             </div>
+
+            <p className="text-base text-ink-soft">
+                Elige con las teclas <span className="kbd">1</span>, <span className="kbd">2</span> o <span className="kbd">3</span>, o toca una letra.
+            </p>
         </div>
     );
 };

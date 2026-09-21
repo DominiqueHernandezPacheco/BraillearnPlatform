@@ -70,7 +70,7 @@ export default {
         title: 'Impara con i tuoi tempi.',
         lead: 'Lezioni in italiano che si adattano a te, senza manuali e senza formazione preliminare.',
         previewTitle: 'Anteprima della piattaforma di apprendimento',
-        previewNote: 'Questa è la vera pagina principale della piattaforma. La versione completa include corsi, un simulatore e altro.',
+        previewNote: 'Questa è la vera pagina principale della piattaforma. La versione completa include corsi, messaggi per il display Braille e altro.',
         features: [
             {
                 title: 'Dall’alfabeto alle parole',

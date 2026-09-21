@@ -24,8 +24,8 @@ const RULES = [
         intent: { type: 'open-module', moduleId: 3 },
     },
     {
-        test: /simulador/,
-        intent: { type: 'navigate', page: 'simulador', anchor: 'simulador-top' },
+        test: /mensaje|mandar(le)? algo|escribir(le)? (algo )?al (display|dispositivo)/,
+        intent: { type: 'navigate', page: 'mensajes', anchor: 'mensajes-top' },
     },
     {
         test: /(mis cursos|los cursos|ver cursos|abre.*cursos|mapa de (cursos|modulos|módulos))/,
@@ -68,10 +68,6 @@ const RULES = [
     {
         test: /(pagina|página) principal|menu principal|menú principal|^inicio$|ir a inicio|volver al inicio/,
         intent: { type: 'navigate', page: 'plataforma', anchor: 'inicio' },
-    },
-    {
-        test: /acerca del proyecto|sobre el proyecto|sobre braillearn|quienes somos|quiénes somos/,
-        intent: { type: 'navigate', page: 'proyecto', anchor: 'acerca' },
     },
 ];
 

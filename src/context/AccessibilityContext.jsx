@@ -38,6 +38,12 @@ export const AccessibilityProvider = ({ children }) => {
         document.documentElement.classList.toggle('reduce-motion', prefs.reduceMotion);
     }, [prefs.reduceMotion]);
 
+    // Alto contraste: la clase va en <html> para que las variables de color
+    // (ver index.css → .high-contrast) alcancen también al fondo del <body>.
+    useEffect(() => {
+        document.documentElement.classList.toggle('high-contrast', prefs.highContrast);
+    }, [prefs.highContrast]);
+
     // Helpers tipados para que los consumidores no toquen setPrefs directamente
     const setFontScale    = (v) => setPrefs(p => ({ ...p, fontScale: v }));
     const setReduceMotion = (v) => setPrefs(p => ({ ...p, reduceMotion: v }));

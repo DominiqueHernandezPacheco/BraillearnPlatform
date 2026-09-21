@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Check } from 'lucide-react';
 import InteractiveBrailleCell from '../../../common/InteractiveBrailleCell';
 import useBrailleKeyboard from '../../../../hooks/useBrailleKeyboard';
 import useBrailleSound from '../../../../hooks/useBrailleSound';
@@ -47,7 +48,7 @@ const LessonBuilder = ({ lesson, onVerify }) => {
     useEffect(() => {
         const handleEnter = (e) => {
             if (e.key === 'Enter') {
-                // Si el foco está en un punto de la celda (SVG circle), Enter ya fue
+                // Si el foco está en un punto de la celda (SVG), Enter ya fue
                 // manejado por InteractiveBrailleCell — no verificamos dos veces.
                 if (document.activeElement?.getAttribute('role') === 'button' &&
                     document.activeElement?.closest('[role="group"]')) return;
@@ -57,6 +58,7 @@ const LessonBuilder = ({ lesson, onVerify }) => {
         };
         window.addEventListener('keydown', handleEnter);
         return () => window.removeEventListener('keydown', handleEnter);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dots]);
 
     // Espacio → escuchar el patrón que el usuario ha construido hasta ahora
@@ -68,7 +70,7 @@ const LessonBuilder = ({ lesson, onVerify }) => {
             if (document.activeElement?.getAttribute('role') === 'button' &&
                 document.activeElement?.closest('[role="group"]')) return;
 
-            // Si el foco está en el botón Verificar, dejamos que el browser lo active
+            // Si el foco está en un botón, dejamos que el navegador lo active
             if (document.activeElement?.tagName === 'BUTTON') return;
 
             e.preventDefault();
@@ -79,37 +81,36 @@ const LessonBuilder = ({ lesson, onVerify }) => {
         };
         window.addEventListener('keydown', handleSpace);
         return () => window.removeEventListener('keydown', handleSpace);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dots, isMuted, lesson]);
 
     return (
-        <div className="flex flex-col items-center w-full animate-fadeIn">
-            <p className="text-2xl font-medium mb-8 text-gray-700 max-w-xl">{lesson.question}</p>
+        <div className="flex flex-col gap-7">
+            <p className="text-2xl font-bold leading-snug text-ink md:text-[1.75rem]">{lesson.question}</p>
 
-            <div className="p-8 bg-white rounded-3xl shadow-xl mb-6 border-2 border-blue-50">
+            <div className="card dots-grid flex justify-center px-4 py-8">
                 <InteractiveBrailleCell dots={dots} onClick={toggleDot} size="huge" />
             </div>
 
             {/* Instrucciones de teclado — visibles y legibles por lectores de pantalla */}
-            <div className="text-center text-sm text-gray-400 mb-6 space-y-1">
+            <div className="flex flex-col gap-2 text-base text-ink-soft">
                 <p>
-                    <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border text-xs">F</kbd> p.1 ·{' '}
-                    <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border text-xs">D</kbd> p.2 ·{' '}
-                    <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border text-xs">S</kbd> p.3 ·{' '}
-                    <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border text-xs">J</kbd> p.4 ·{' '}
-                    <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border text-xs">K</kbd> p.5 ·{' '}
-                    <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border text-xs">L</kbd> p.6
+                    <span className="kbd">F</span> punto 1 · <span className="kbd">D</span> punto 2 ·{' '}
+                    <span className="kbd">S</span> punto 3 · <span className="kbd">J</span> punto 4 ·{' '}
+                    <span className="kbd">K</span> punto 5 · <span className="kbd">L</span> punto 6
                 </p>
                 <p>
-                    <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border text-xs">Espacio</kbd> escuchar patrón ·{' '}
-                    <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border text-xs">Enter</kbd> verificar
+                    <span className="kbd">Espacio</span> escuchar tu patrón · <span className="kbd">Enter</span> verificar
                 </p>
             </div>
 
             <button
+                type="button"
                 onClick={handleVerify}
                 aria-label="Verificar patrón. Atajo: tecla Enter."
-                className="px-10 py-4 bg-green-500 text-white font-bold text-xl rounded-xl hover:bg-green-600 shadow-lg transform hover:-translate-y-1 transition-all focus:outline-none focus:ring-4 focus:ring-green-300"
+                className="btn btn-primary btn-lg btn-block"
             >
+                <Check className="h-6 w-6" strokeWidth={3.5} aria-hidden="true" />
                 Verificar
             </button>
         </div>

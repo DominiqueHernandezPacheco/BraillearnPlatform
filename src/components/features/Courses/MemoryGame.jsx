@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { braillePatterns } from '../../../constants/braillePatterns';
-import BrailleCell from '../../common/BrailleCell';
+import TactileCell from '../../common/TactileCell';
+import { Check, Star } from 'lucide-react';
 import { shuffleArray } from '../../../utils/arrayHelpers';
 // NUEVO: Importamos el servicio de conexión
 import { brailleService } from '../../../utils/brailleService'; 
@@ -176,13 +177,14 @@ const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) =
             <p
                 aria-live="polite"
                 aria-atomic="true"
-                className="mb-4 text-sm font-semibold text-gray-500"
+                className="chip chip-quiet mb-5 text-base"
             >
+                <Star size={16} aria-hidden="true" />
                 {matchedPairs} de {totalPairs.current} pares encontrados
             </p>
 
             <div
-                className="grid grid-cols-4 gap-3 w-full max-w-md mx-auto"
+                className="grid grid-cols-4 gap-3 sm:gap-4 w-full max-w-lg mx-auto px-1"
                 role="grid"
                 aria-label={`Tablero de Memorama. ${matchedPairs} de ${totalPairs.current} pares encontrados.`}
             >
@@ -201,9 +203,8 @@ const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) =
                             data-card-index={index}
                             onClick={() => handleCardClick(index)}
                             onKeyDown={(e) => handleCardKeyDown(e, index)}
-                            className={`aspect-square cursor-pointer relative h-24 w-24 rounded-xl
-                                focus:outline-none focus:ring-4 focus:ring-yellow-400
-                                ${isMatched ? 'opacity-60' : ''}`}
+                            className={`relative aspect-square w-full rounded-2xl mb-1
+                                ${isMatched ? 'cursor-default' : 'cursor-pointer'}`}
                             style={{ perspective: '1000px' }}
                             role="button"
                             tabIndex={0}
@@ -219,18 +220,33 @@ const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) =
                                     transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
                                 }}
                             >
-                                {/* Cara oculta */}
+                                {/* Cara oculta: azul de marca con una celda Braille de adorno */}
                                 <div
-                                    className="absolute inset-0 bg-blue-600 rounded-xl shadow-md flex items-center justify-center border-2 border-blue-800"
+                                    className="absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-brand-strong bg-brand text-on-brand shadow-[0_4px_0_var(--brand-strong)]"
                                     style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
                                     aria-hidden="true"
                                 >
-                                    <span className="text-white font-bold text-2xl">?</span>
+                                    <svg viewBox="0 0 40 60" className="h-[58%] w-auto" focusable="false">
+                                        {[0, 1, 2, 3, 4, 5].map((d) => (
+                                            <circle
+                                                key={d}
+                                                cx={d < 3 ? 10 : 30}
+                                                cy={10 + (d % 3) * 20}
+                                                r="6"
+                                                fill="currentColor"
+                                                opacity={[0, 4, 5].includes(d) ? 0.85 : 0.3}
+                                            />
+                                        ))}
+                                    </svg>
                                 </div>
 
                                 {/* Cara visible */}
                                 <div
-                                    className="absolute inset-0 bg-white rounded-xl shadow-md flex items-center justify-center border-2 border-blue-200"
+                                    className={`absolute inset-0 flex items-center justify-center rounded-2xl border-2 ${
+                                        isMatched
+                                            ? 'border-good bg-good-soft shadow-[0_4px_0_var(--good)]'
+                                            : 'border-line-strong bg-surface shadow-[0_4px_0_var(--line-strong)]'
+                                    }`}
                                     style={{
                                         backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
                                         transform: 'rotateY(180deg)'
@@ -238,16 +254,22 @@ const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) =
                                     aria-hidden="true"
                                 >
                                     {card.type === 'cell' ? (
-                                        <div className="transform scale-75 pointer-events-none">
-                                            <BrailleCell
+                                        <div className="pointer-events-none flex h-full w-full items-center justify-center">
+                                            <TactileCell
                                                 dots={braillePatterns[card.val]}
-                                                isInteractive={false}
-                                                size="normal"
+                                                decorative
+                                                className="h-[62%] w-auto"
                                             />
                                         </div>
                                     ) : (
-                                        <span className="text-4xl font-bold text-gray-800 uppercase">
+                                        <span className="font-display text-4xl sm:text-5xl font-black uppercase text-ink">
                                             {card.val}
+                                        </span>
+                                    )}
+
+                                    {isMatched && (
+                                        <span className="pop absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-good text-surface">
+                                            <Check size={16} strokeWidth={3.5} aria-hidden="true" />
                                         </span>
                                     )}
                                 </div>
@@ -258,7 +280,7 @@ const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) =
             </div>
 
             {/* Instrucciones de teclado */}
-            <p className="mt-4 text-xs text-gray-400 text-center">
+            <p className="mt-5 text-sm text-ink-soft text-center">
                 Flechas para navegar · Espacio/Enter para voltear · Escape para salir
             </p>
         </div>

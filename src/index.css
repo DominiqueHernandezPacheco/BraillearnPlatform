@@ -1,428 +1,492 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
 @import "tailwindcss";
 
-/* RESET & BASE */
-body {
-  font-family: 'Inter', sans-serif;
-  overflow: hidden;
-  margin: 0;
-  padding: 0;
+/* ═══════════════════════════════════════════════════════════════════════════
+   BRAILLEARN · SISTEMA DE DISEÑO DE LA PLATAFORMA
+   Identidad: azul (#155DFC) + amarillo (#FDC700), pensada para ser usada con
+   lector de pantalla, teclado, voz o baja visión.
+   Todo el color sale de variables semánticas: el modo de alto contraste solo
+   redefine las variables (ver .high-contrast), sin parches por clase.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tipografía disponible como utilidades (font-sans / font-display) ────── */
+@theme {
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Nunito Variable", "Nunito", ui-rounded, "Atkinson Hyperlegible", system-ui, sans-serif;
 }
 
-html {
-  scroll-behavior: smooth;
+/* ── Colores semánticos como utilidades (bg-surface, text-ink, border-line…) ─ */
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-sun: var(--sun);
+  --color-sun-strong: var(--sun-strong);
+  --color-sun-soft: var(--sun-soft);
+  --color-on-sun: var(--on-sun);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-oops: var(--oops);
+  --color-oops-soft: var(--oops-soft);
 }
 
-main {
-  position: relative;
-  height: calc(100vh - 72px);
+/* ── Tema por defecto ─────────────────────────────────────────────────────── */
+:root {
+  --page: #f4f6fb;
+  --surface: #ffffff;
+  --surface-2: #ebf0fa;
+  --ink: #0d1b36;          /* texto principal (≈16:1 sobre blanco) */
+  --ink-soft: #37455f;     /* texto secundario (≈9:1) */
+  --ink-faint: #56637e;    /* texto terciario (≥5.5:1 sobre --page) */
+  --line: #dce3f0;
+  --line-strong: #b7c2d8;
+
+  --brand: #155dfc;        /* azul de marca (5.2:1 con texto blanco) */
+  --brand-strong: #0f45c7; /* texto azul sobre fondos suaves, sombra de botón */
+  --brand-soft: #e5edff;
+  --on-brand: #ffffff;
+
+  --sun: #fdc700;          /* amarillo de marca: acción principal */
+  --sun-strong: #d9a400;   /* "repisa" del botón */
+  --sun-soft: #fff5cc;
+  --on-sun: #0d1b36;
+
+  --good: #0b7a53;
+  --good-soft: #ddf4ea;
+  --oops: #b23f0c;
+  --oops-soft: #fce9df;
+
+  --focus: #0d1b36;
 }
 
-/* SCROLL CUSTOM */
-.scroll-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow-y: scroll;
-  scroll-snap-type: y proximity;
-  visibility: hidden;
-  opacity: 0;
-  transition: visibility 0.3s, opacity 0.3s ease-out;
-}
-.scroll-container.active {
-  visibility: visible;
-  opacity: 1;
-}
-
-/* SECCIONES */
-.full-page-section {
-  min-height: calc(100vh - 72px);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  scroll-snap-align: start;
-  padding-top: 80px;
-  padding-bottom: 80px;
-  opacity: 0;
-  transform: translateY(20px);
-  filter: blur(5px);
-  transition: opacity 1.2s ease-out, transform 1.2s ease-out, filter 1.2s ease-out;
-}
-.full-page-section.visible {
-  opacity: 1;
-  transform: translateY(0);
-  filter: blur(0);
-}
-
-footer {
-  scroll-snap-align: start;
-}
-
-/* ANIMACIONES */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-/* GRÁFICAS */
-.donut-chart-bg { stroke: #e5e7eb; }
-.donut-chart-fg {
-    stroke-linecap: round;
-    transform: rotate(-90deg);
-    transform-origin: 50% 50%;
-    animation: fadeIn 1s ease-out forwards;
-    stroke-dashoffset: 283;
-    transition: stroke-dashoffset 1.5s ease-out 0.5s;
-}
-.chart-10.visible .donut-chart-fg { stroke-dasharray: 28.3 254.7; stroke-dashoffset: 254.7; }
-.chart-70.visible .donut-chart-fg { stroke-dasharray: 198.1 84.9; stroke-dashoffset: 84.9; }
-
-/* UTILIDADES (Modo Normal) */
-.grid-background {
-    background-color: #ffffff;
-    background-image: linear-gradient(#e5e7eb 1px, transparent 1px),
-                      linear-gradient(to right, #e5e7eb 1px, transparent 1px);
-    background-size: 32px 32px;
-}
-
-.tab-button.active {
-    border-color: #2563EB;
-    color: #2563EB;
-    background-color: #DBEAFE;
-}
-.tab-panel.active { display: block; animation: fadeIn 0.6s ease-out; }
-.tab-panel { display: none; }
-
-/* =========================================
-   MODO ALTO CONTRASTE (SOLUCIÓN FINAL)
-   ========================================= */
-
+/* ── Alto contraste (el mismo esquema de siempre: negro / amarillo / cian) ── */
 .high-contrast {
-  --hc-bg: #000000;
-  --hc-fg: #FFFF00; /* Amarillo para texto */
-  --hc-accent: #00FFFF; /* Cian para interactivos */
-  --hc-border: #FFFFFF; /* Blanco para bordes */
-  
-  background-color: var(--hc-bg) !important;
-  color: var(--hc-fg) !important;
+  --page: #000000;
+  --surface: #000000;
+  --surface-2: #141414;
+  --ink: #ffff00;
+  --ink-soft: #ffff00;
+  --ink-faint: #f0f000;
+  --line: #ffffff;
+  --line-strong: #ffffff;
+
+  --brand: #00ffff;
+  --brand-strong: #00e6e6;
+  --brand-soft: #00262b;
+  --on-brand: #000000;
+
+  --sun: #ffff00;
+  --sun-strong: #b8b800;
+  --sun-soft: #262600;
+  --on-sun: #000000;
+
+  --good: #4dffa6;
+  --good-soft: #00291a;
+  --oops: #ffa366;
+  --oops-soft: #2b1400;
+
+  --focus: #00ffff;
 }
 
-/* 1. FORZAR FONDO NEGRO (CORREGIDO) */
-/* IMPORTANTE: Eliminé 'div:not(.braille-cell)' de esta lista. */
-/* Esto evita que los contenedores transparentes se vuelvan negros y tapen el grid. */
-.high-contrast section:not(.grid-background),
-.high-contrast header,
-.high-contrast footer,
-.high-contrast main,
-.high-contrast .full-page-section:not(.grid-background),
-.high-contrast .bg-white,
-.high-contrast .bg-gray-50,
-.high-contrast .bg-gray-100,
-.high-contrast .bg-gray-200,
-.high-contrast .bg-blue-600,
-.high-contrast .bg-blue-100,
-.high-contrast .bg-yellow-400,
-.high-contrast textarea,
-.high-contrast input {
-  background-color: var(--hc-bg) !important;
-  color: var(--hc-fg) !important;
-  box-shadow: none !important;
-}
-
-/* 1.1 GRID VISIBLE SOBRE FONDO NEGRO */
-.high-contrast .grid-background {
-  background-color: var(--hc-bg) !important;
-  background-image: linear-gradient(#555555 2px, transparent 2px),
-                    linear-gradient(to right, #555555 2px, transparent 2px) !important;
-  background-size: 32px 32px !important;
-  color: var(--hc-fg) !important;
-  box-shadow: none !important;
-}
-
-/* 2. BORDES PARA DEFINICIÓN */
-.high-contrast button,
-.high-contrast a[class*="bg-"],
-.high-contrast .rounded-2xl,
-.high-contrast .rounded-3xl,
-.high-contrast .rounded-lg, /* Para las tarjetas de Futuro */
-.high-contrast textarea,
-.high-contrast header,
-.high-contrast footer {
-  border: 2px solid var(--hc-border) !important;
-}
-
-.high-contrast header { border-top: 0 !important; border-left: 0 !important; border-right: 0 !important; }
-.high-contrast footer { border-bottom: 0 !important; border-left: 0 !important; border-right: 0 !important; }
-
-/* 3. TEXTOS Y ENLACES */
-.high-contrast h1, .high-contrast h2, .high-contrast h3, .high-contrast h4, .high-contrast h5,
-.high-contrast p, .high-contrast span, .high-contrast li,
-.high-contrast .text-gray-900,
-.high-contrast .text-gray-800,
-.high-contrast .text-gray-700,
-.high-contrast .text-gray-600,
-.high-contrast .text-blue-600 {
-  color: var(--hc-fg) !important;
-}
-
-.high-contrast a, 
-.high-contrast button {
-  color: var(--hc-fg) !important;
-}
-.high-contrast a:hover,
-.high-contrast button:hover {
-  color: var(--hc-accent) !important;
-  border-color: var(--hc-accent) !important;
-}
-
-/* BOTONES ACTIVOS (SIMULADOR) */
-.high-contrast button[aria-pressed="true"] {
-  background-color: var(--hc-accent) !important;
-  color: #000000 !important;
-  font-weight: bold !important;
-  border-color: var(--hc-accent) !important;
-}
-
-/* 4. CELDAS BRAILLE */
-.high-contrast .braille-cell {
-  background-color: #000000 !important;
-  border: 2px solid #FFFFFF !important;
-}
-
-.high-contrast .braille-cell circle[fill="currentColor"],
-.high-contrast .braille-cell circle[class*="fill-gray-900"] {
-  fill: #FFFF00 !important;
-  stroke: none !important;
-}
-
-.high-contrast .braille-cell circle[fill="lightgray"],
-.high-contrast .braille-cell circle[class*="fill-gray-200"] {
-  fill: #333333 !important;
-}
-
-/* 5. ICONOS Y GRÁFICAS */
-.high-contrast svg { color: var(--hc-accent) !important; }
-.high-contrast .text-yellow-400 { color: #FFFF00 !important; }
-.high-contrast .donut-chart-bg { stroke: #333 !important; }
-.high-contrast .donut-chart-fg { color: var(--hc-accent) !important; }
-
-/* . FONDOS DE ICONOS (CÍRCULOS) */
-/* Les damos un borde Cian y fondo negro para que resalten estéticamente */
-.high-contrast .rounded-full.bg-blue-100,
-.high-contrast .rounded-full.bg-purple-100,
-.high-contrast .rounded-full.bg-green-100,
-.high-contrast .rounded-full.bg-yellow-100,
-.high-contrast .rounded-full.bg-red-100,
-.high-contrast .rounded-full.bg-white {
-    background-color: #000000 !important;
-    border: 2px solid var(--hc-accent) !important;
-    color: var(--hc-accent) !important;
-}
-
-/* 7. ICONOS GENERALES */
-.high-contrast svg { color: var(--hc-accent) !important; }
-.high-contrast .text-yellow-400 { color: #FFFF00 !important; }
-.high-contrast .donut-chart-bg { stroke: #333 !important; }
-.high-contrast .donut-chart-fg { color: var(--hc-accent) !important; }
-
-
-
-/* Ocultar barra en toda la app */
-::-webkit-scrollbar {
-    display: none;
-}
-
-.high-contrast .tab-button.active {
-  background-color: var(--hc-accent) !important; /* Fondo relleno del color fuerte */
-  color: var(--hc-bg) !important;                /* Texto negro (o el color de fondo) */
-  font-weight: 900 !important;                   /* Letra extra gruesa */
-  border-bottom: 4px solid var(--hc-border) !important;
-}
-
-.high-contrast .tab-button:not(.active) {
-  color: var(--hc-fg) !important;                /* Texto normal */
-  border-bottom: 2px solid transparent !important;
-}
-
-/* --- FIX 3: SIMULADOR Y NAVEGACIÓN POR TECLADO --- */
-
-/* Cuando haces TAB o CLIC en una celda Braille */
-.high-contrast .braille-cell:focus,
-.high-contrast .braille-cell:active {
-  outline: 4px solid var(--hc-accent) !important; /* Borde exterior brillante */
-  outline-offset: 2px;
-  background-color: #090909 !important; /* Fondo gris para diferenciar del negro */
-  cursor: pointer;
-}
-
-/* Para los botones de modo (Rítmico/Voz) y velocidad que estén activos */
-.high-contrast button[aria-pressed="true"] {
-  background-color: var(--hc-accent) !important;
-  color: var(--hc-bg) !important;
-  font-weight: bold;
-  border: 2px solid var(--hc-border) !important;
-}
-
-/* Asegurar que el foco del teclado (TAB) se vea en CUALQUIER elemento */
-.high-contrast *:focus-visible {
-  outline: 3px solid var(--hc-accent) !important;
-  outline-offset: 2px;
-}
-
-.high-contrast .bg-green-100,
-.high-contrast .bg-purple-100,
-.high-contrast .bg-red-100 {
-    background-color: var(--hc-bg) !important;
-    color: var(--hc-fg) !important;
-    box-shadow: none !important;
-}
-
-/* Esto hace que los iconos de Software (Azul) y Hardware (Verde) se vean iguales:
-   Fondo oscuro y borde de color acento. */
-.high-contrast .rounded-lg.bg-blue-100,
-.high-contrast .rounded-lg.bg-green-100,
-.high-contrast .rounded-lg.bg-purple-100,
-.high-contrast .rounded-lg.bg-red-100 {
-    background-color: #222222 !important;  /* Gris muy oscuro */
-    border: 3px solid var(--hc-accent) !important; /* Borde Cian/Amarillo */
-    color: var(--hc-accent) !important;    /* Icono del mismo color */
-}
-
-
-.high-contrast .bg-gray-800 {
-    background-color: #000000 !important; /* Un gris muy oscuro (Casi negro) */
-    border-color: var(--hc-border) !important; /* Aseguramos que el borde sea blanco */
-    color: var(--hc-fg) !important; /* Texto amarillo/blanco */
-}
-
-
-/* --- FIX 5: BOTÓN VERIFICAR Y PUNTOS INTERACTIVOS --- */
-
-/* 1. Arreglar el Botón "Verificar" (Quitamos el fondo verde) */
-/* Lo forzamos a ser Negro con Borde y Texto del color de acento (Cian/Amarillo) */
-.high-contrast .bg-green-500 {
-    background-color: var(--hc-bg) !important; 
-    border: 3px solid var(--hc-accent) !important;
-    color: var(--hc-accent) !important;
-    font-weight: 800 !important;
-}
-
-/* Efecto Hover para el botón (Relleno de color al pasar el mouse) */
-.high-contrast .bg-green-500:hover {
-    background-color: var(--hc-accent) !important;
-    color: var(--hc-bg) !important;
-}
-
-/* 2. Arreglar los Puntos de la Celda Interactiva */
-/* El problema era que los puntos activos usan "fill-gray-900" (casi negro) */
-
-/* Puntos ACTIVOS -> Los pintamos del color NEÓN (Cian) */
-.high-contrast circle[class*="fill-gray-900"] {
-    fill: var(--hc-accent) !important;
-    stroke: none !important;
-}
-
-/* Puntos INACTIVOS -> Los pintamos Gris Oscuro con un borde fino */
-/* Para que se note que hay un hueco ahí, pero no brille */
-.high-contrast circle[class*="fill-gray-200"] {
-    fill: #222222 !important; 
-    stroke: var(--hc-border) !important;
-    stroke-width: 2px;
-}
-
-/* --- FIX 5: BOTÓN VERIFICAR Y PUNTOS INTERACTIVOS --- */
-
-/* 1. Arreglar el Botón "Verificar" (Quitamos el fondo verde) */
-/* Lo forzamos a ser Negro con Borde y Texto del color de acento (Cian/Amarillo) */
-.high-contrast .bg-green-500 {
-    background-color: var(--hc-bg) !important; 
-    border: 3px solid var(--hc-accent) !important;
-    color: var(--hc-accent) !important;
-    font-weight: 800 !important;
-}
-
-/* Efecto Hover para el botón (Relleno de color al pasar el mouse) */
-.high-contrast .bg-green-500:hover {
-    background-color: var(--hc-accent) !important;
-    color: var(--hc-bg) !important;
-}
-
-/* 2. Arreglar los Puntos de la Celda Interactiva */
-/* El problema era que los puntos activos usan "fill-gray-900" (casi negro) */
-
-/* Puntos ACTIVOS -> Los pintamos del color NEÓN (Cian) */
-.high-contrast circle[class*="fill-gray-900"] {
-    fill: var(--hc-accent) !important;
-    stroke: none !important;
-}
-
-/* Puntos INACTIVOS -> Los pintamos Gris Oscuro con un borde fino */
-/* Para que se note que hay un hueco ahí, pero no brille */
-.high-contrast circle[class*="fill-gray-200"] {
-    fill: #222222 !important; 
-    stroke: var(--hc-border) !important;
-    stroke-width: 2px;
-}
-/* =========================================
-   ACCESIBILIDAD: MOVIMIENTO REDUCIDO
-   WCAG 2.1 criterio 2.3.3 — respetar la
-   preferencia del sistema operativo.
-   NVDA + Firefox no lee contenido con
-   filter: blur() activo; esta regla también
-   resuelve ese problema.
-   ========================================= */
-@media (prefers-reduced-motion: reduce) {
-  .full-page-section {
-    opacity: 1 !important;
-    transform: none !important;
-    filter: none !important;
-    transition: none !important;
+/* ═══════════════════════════════════════════════════════════════════════════
+   BASE
+   ═══════════════════════════════════════════════════════════════════════════ */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
   }
-  .scroll-container {
-    transition: none !important;
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: "Atkinson Hyperlegible", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    font-size: 1rem;
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
   }
+
+  h1, h2, h3, h4 {
+    font-family: "Nunito Variable", "Nunito", ui-rounded, "Atkinson Hyperlegible", system-ui, sans-serif;
+    color: var(--ink);
+    line-height: 1.12;
+    letter-spacing: -0.012em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 { font-weight: 900; }
+  h2, h3 { font-weight: 800; }
+  p { margin: 0; text-wrap: pretty; }
+
+  /* Foco siempre visible (WCAG 2.4.7 / 2.4.11): contorno grueso con separación */
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 3px;
+    border-radius: 0.5rem;
+  }
+  /* Sobre fondos azules/oscuros el aro tiene que ser claro */
+  .on-dark :focus-visible { outline-color: #ffffff; }
+  .high-contrast .on-dark :focus-visible { outline-color: var(--focus); }
+
+  ::selection { background: var(--sun); color: var(--on-sun); }
+
+  /* Tocar en móvil sin destello gris, y sin retardo de 300 ms */
+  a, button, [role="button"], input, select, textarea, summary {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  button:not(:disabled), [role="button"], summary { cursor: pointer; }
 }
 
-/* Reducción de movimiento activada manualmente desde el panel de accesibilidad.
-   Se aplica añadiendo la clase .reduce-motion al elemento <html> (AccessibilityContext). */
-.reduce-motion .full-page-section {
-  opacity: 1 !important;
-  transform: none !important;
-  filter: none !important;
-  transition: none !important;
-}
-.reduce-motion .scroll-container {
-  transition: none !important;
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENTES
+   ═══════════════════════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* Contenedor de página */
+  .page {
+    width: 100%;
+    max-width: 72rem;
+    margin-inline: auto;
+    padding: 2rem 1.25rem 7.5rem;
+  }
+  @media (min-width: 48rem) {
+    .page { padding: 3rem 2rem 5rem; }
+  }
+
+  /* Enlace "Saltar al contenido" (primer elemento enfocable de la página) */
+  .skip-link {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 200;
+    transform: translateY(-200%);
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.875rem;
+    background: var(--sun);
+    color: var(--on-sun);
+    font-family: "Nunito Variable", ui-rounded, sans-serif;
+    font-weight: 800;
+    text-decoration: none;
+    box-shadow: 0 4px 0 var(--sun-strong);
+  }
+  .skip-link:focus { transform: translateY(0); }
+
+  /* ── Botones "chunky": una repisa inferior que se hunde al presionar ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 3rem;
+    padding: 0.7rem 1.5rem;
+    border: 2px solid transparent;
+    border-radius: 1rem;
+    font-family: "Nunito Variable", ui-rounded, sans-serif;
+    font-weight: 800;
+    font-size: 1.0625rem;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+    letter-spacing: 0.005em;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:active:not(:disabled) { transform: translateY(3px); }
+  .btn:disabled,
+  .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; box-shadow: none !important; }
+  .btn-lg { min-height: 3.5rem; padding: 0.85rem 1.85rem; font-size: 1.1875rem; border-radius: 1.125rem; }
+  .btn-sm { min-height: 2.75rem; padding: 0.5rem 1rem; font-size: 0.975rem; border-radius: 0.875rem; }
+  .btn-block { width: 100%; }
+
+  .btn-primary {            /* la acción principal de cada pantalla: amarillo */
+    background: var(--sun);
+    color: var(--on-sun);
+    box-shadow: 0 4px 0 var(--sun-strong);
+  }
+  .btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--sun), white 14%); }
+  .btn-primary:active:not(:disabled) { box-shadow: 0 1px 0 var(--sun-strong); }
+
+  .btn-blue {
+    background: var(--brand);
+    color: var(--on-brand);
+    box-shadow: 0 4px 0 var(--brand-strong);
+  }
+  .btn-blue:hover:not(:disabled) { background: color-mix(in srgb, var(--brand), white 10%); }
+  .btn-blue:active:not(:disabled) { box-shadow: 0 1px 0 var(--brand-strong); }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--brand-strong);
+    border-color: var(--line-strong);
+    box-shadow: 0 4px 0 var(--line-strong);
+  }
+  .btn-secondary:hover:not(:disabled) { background: var(--brand-soft); }
+  .btn-secondary:active:not(:disabled) { box-shadow: 0 1px 0 var(--line-strong); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink-soft);
+  }
+  .btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
+
+  .btn-good {
+    background: var(--good);
+    color: #ffffff;
+    box-shadow: 0 4px 0 color-mix(in srgb, var(--good), black 30%);
+  }
+  .btn-good:active:not(:disabled) { box-shadow: 0 1px 0 color-mix(in srgb, var(--good), black 30%); }
+
+  .high-contrast .btn { border-color: var(--line); }
+  .high-contrast .btn-ghost { border-color: transparent; }
+  .high-contrast .btn-good { color: #000000; }
+
+  /* Botón de icono redondo (sonido, contraste, accesibilidad…) */
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    border: 2px solid var(--line);
+    background: var(--surface);
+    color: var(--ink-soft);
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .icon-btn:hover { background: var(--brand-soft); color: var(--brand-strong); border-color: var(--line-strong); }
+  .icon-btn[aria-pressed="true"],
+  .icon-btn[aria-checked="true"] { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+
+  /* ── Superficies ── */
+  /* Superficie suave: borde fino y sombra difusa en dos capas (estilo Apple) */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 1.75rem;
+    box-shadow:
+      0 1px 2px rgba(13, 27, 54, 0.04),
+      0 14px 36px -14px rgba(13, 27, 54, 0.16);
+  }
+  .high-contrast .card { border-width: 2px; box-shadow: none; }
+  .card-lift {
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.15s ease, box-shadow 0.2s ease;
+  }
+  .card-lift:hover {
+    border-color: var(--brand);
+    transform: translateY(-3px);
+    box-shadow:
+      0 2px 4px rgba(13, 27, 54, 0.05),
+      0 22px 44px -16px rgba(21, 93, 252, 0.28);
+  }
+  .high-contrast .card-lift:hover { box-shadow: none; }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.4;
+    background: var(--brand-soft);
+    color: var(--brand-strong);
+  }
+  .chip-good { background: var(--good-soft); color: var(--good); }
+  .chip-sun  { background: var(--sun-soft);  color: var(--ink); }
+  .chip-quiet { background: var(--surface-2); color: var(--ink-soft); }
+  .high-contrast .chip { border: 1.5px solid var(--line); }
+
+  /* Tecla de atajo, para que se lea como "tecla" y no como texto suelto */
+  .kbd {
+    display: inline-block;
+    min-width: 1.75rem;
+    padding: 0.05rem 0.5rem;
+    border: 2px solid var(--line-strong);
+    border-bottom-width: 4px;
+    border-radius: 0.5rem;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: "Nunito Variable", ui-rounded, sans-serif;
+    font-size: 0.875rem;
+    font-weight: 800;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  /* Campos de texto */
+  .input {
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--line-strong);
+    border-radius: 1rem;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    line-height: 1.5;
+  }
+  .input::placeholder { color: var(--ink-faint); opacity: 1; }
+  .input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-color: var(--brand); }
+
+  /* Barra de progreso */
+  .meter {
+    height: 0.875rem;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 2px solid var(--line);
+    overflow: hidden;
+  }
+  .meter > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--brand);
+    transition: width 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .meter-sun > span { background: var(--sun); }
+
+  /* Textura de puntos: la "trama" Braille de fondo, en pequeñas dosis */
+  .dots-grid {
+    background-image: radial-gradient(circle at center, color-mix(in srgb, var(--brand) 26%, transparent) 2.4px, transparent 3px);
+    background-size: 28px 28px;
+  }
+  .high-contrast .dots-grid { background-image: radial-gradient(circle at center, #ffffff55 2px, transparent 2.6px); }
+
+  /* Texto visible solo para lectores de pantalla ya existe como .sr-only (Tailwind) */
 }
 
-/* ONBOARDING TOUR */
-@keyframes onboardingFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOVIMIENTO
+   Todo lo que anima parte de un estado visible en reposo y se desactiva con
+   la preferencia del sistema o con el interruptor del panel de accesibilidad.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes ringPulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--sun) 65%, transparent); }
+  70%  { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes onboardingFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes onboardingPopIn {
-    from { opacity: 0; transform: scale(0.96) translateY(6px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 @keyframes onboardingPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45); }
-    50% { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(21, 93, 252, 0.45); }
+  50%      { box-shadow: 0 0 0 8px rgba(21, 93, 252, 0); }
 }
-.onboarding-fade-in {
-    animation: onboardingFadeIn 0.25s ease-out;
+
+.rise { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; animation-delay: var(--d, 0ms); }
+.pop  { animation: pop 0.32s cubic-bezier(0.3, 1.4, 0.5, 1) backwards; }
+.ring-pulse { animation: ringPulse 2.2s ease-out infinite; }
+.sheet-up { animation: sheetUp 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* ── Braulio, la mascota ──────────────────────────────────────────────────── */
+.braulio { overflow: visible; }
+.braulio-figure { transform-origin: 100px 196px; transform-box: view-box; }
+.braulio--idle .braulio-figure,
+.braulio--wave .braulio-figure,
+.braulio--talking .braulio-figure { animation: braulioBob 3.8s ease-in-out infinite; }
+.braulio--listening .braulio-figure { animation: braulioBreathe 1.3s ease-in-out infinite; }
+.braulio--happy .braulio-figure { animation: braulioHop 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) 2; }
+.braulio--celebrate .braulio-figure { animation: braulioHop 0.75s ease-in-out infinite; }
+.braulio--oops .braulio-figure { transform: rotate(-4deg); }
+
+.braulio-eyes { transition: transform 0.12s ease-out; }
+.braulio-eyes--up { transform: translate(6px, -6px); }
+.braulio-blink { transform-origin: 100px 98px; transform-box: view-box; animation: braulioBlink 5.5s infinite; }
+
+.braulio-arm-r { transform-origin: 166px 114px; transform-box: view-box; }
+.braulio--wave .braulio-arm-r { animation: braulioWave 0.75s ease-in-out 4; }
+
+.braulio-mouth-talk { transform-origin: 100px 116px; transform-box: view-box; animation: braulioTalk 0.32s ease-in-out infinite alternate; }
+
+.braulio-wave { opacity: 0; animation: braulioRipple 1.3s ease-out infinite; }
+.braulio-wave--2 { animation-delay: 0.25s; }
+.braulio-think { opacity: 0.25; animation: braulioThink 1.4s ease-in-out infinite; }
+.braulio-think--2 { animation-delay: 0.25s; }
+.braulio-think--3 { animation-delay: 0.5s; }
+.braulio-confetti { transform-box: fill-box; transform-origin: center; animation: braulioTwinkle 1.1s ease-in-out infinite; animation-delay: var(--d, 0ms); }
+
+@keyframes braulioBob     { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes braulioBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+@keyframes braulioHop {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  30%      { transform: translateY(0) scale(1.06, 0.94); }
+  60%      { transform: translateY(-16px) scale(0.97, 1.04); }
 }
-.onboarding-pop-in {
-    animation: onboardingPopIn 0.25s ease-out;
+@keyframes braulioBlink   { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.08); } }
+@keyframes braulioWave    { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(22deg); } }
+@keyframes braulioTalk    { from { transform: scaleY(0.4); } to { transform: scaleY(1); } }
+@keyframes braulioRipple  { 0% { opacity: 0; transform: translateX(0); } 30% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes braulioThink   { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@keyframes braulioTwinkle { 0%, 100% { opacity: 0.35; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1.15); } }
+
+/* ── Vidrio esmerilado (barras fijas) y superficies suaves, al estilo Apple ── */
+.glass {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
 }
+.high-contrast .glass { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* Con una lección abierta, la barra de acciones de la lección ocupa el borde
+   inferior: se oculta la navegación móvil y la burbuja de Braulio sube. */
+/* Encabezados y contenedores que solo reciben foco por código (para anunciar
+   la pantalla nueva): no son controles, así que no llevan recuadro de foco. */
+[tabindex="-1"]:focus-visible { outline: none; }
+
+body[data-lesson] [data-bottom-nav],
+body[data-lesson] [data-site-header] { display: none; }
+body[data-lesson="on"] [data-voice-pill] { bottom: 7rem; }
+body[data-lesson="feedback"] [data-voice-pill] { bottom: 13rem; }
+
+.onboarding-fade-in { animation: onboardingFadeIn 0.25s ease-out; }
+.onboarding-pop-in  { animation: onboardingPopIn 0.25s ease-out; }
 .onboarding-spotlight {
-    border: 3px solid #2563EB;
-    animation: onboardingPulse 1.8s ease-out infinite;
+  border: 3px solid #155dfc;
+  animation: onboardingPulse 1.8s ease-out infinite;
 }
-.reduce-motion .onboarding-fade-in,
-.reduce-motion .onboarding-pop-in,
-.reduce-motion .onboarding-spotlight {
-    animation: none !important;
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Reducción de movimiento activada a mano desde el panel de accesibilidad
+   (AccessibilityContext añade la clase .reduce-motion al <html>). */
+.reduce-motion { scroll-behavior: auto; }
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
