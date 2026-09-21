@@ -27,10 +27,10 @@ This repository holds everything the student and the public see:
 
 ## Key Features
 
-- **Interactive Simulator** — real-time Braille translation with tactile-style feedback, driven by rhythmic audio cues (Tone.js) that mirror how the physical cell renders each character.
-- **Gamified Courses** — structured modules for the Braille alphabet (vowels, numbers, words), with a memory game and interactive drills.
-- **"Braulio" Voice Assistant** — hands-free control by voice: say the wake word, give a command (go to the simulator or the courses, open a module or your last lesson, change the accessibility settings) or ask an open question and get a spoken answer. See [Voice assistant](#voice-assistant-braulio).
-- **Voice-Guided Onboarding** — a 5-step narrated walkthrough that spotlights the courses, simulator, progress tracker, and accessibility panel for first-time users. Fully keyboard-navigable, replayable anytime, and respects reduce-motion.
+- **Messages for the display** — a parent or teacher types a short message, previews how it will look cell by cell, and sends it to the physical Braille display. Recent messages can be re-sent with one tap.
+- **Guided Courses** — a Duolingo-style path of short, bite-sized steps grouped into chapters: a theory module (what Braille is, who Louis Braille was, how the cell works) with a quick check after each chapter, the vowels, and a set of random challenges with a memory game. Progress is saved per step so you resume exactly where you left off.
+- **"Braulio" Voice Assistant** — hands-free control by voice: say the wake word, give a command (go to the courses or the messages area, open a module or your last lesson, change the accessibility settings) or ask an open question and get a spoken answer. See [Voice assistant](#voice-assistant-braulio).
+- **Voice-Guided Onboarding** — a short narrated walkthrough that spotlights the courses, messages, progress tracker, and accessibility panel for first-time users. Fully keyboard-navigable, replayable anytime, and respects reduce-motion.
 - **Accessibility-First Design** — high-contrast mode, adjustable font scale, text-to-speech, reduce-motion, and audio cues, all from one accessibility panel. Not a bolt-on: the target user is the accessibility user.
 - **Multilingual Landing Site** — home, technology, history and community pages in Spanish, English, French, Italian and Korean, with interactive 3D models of the display, the Braille cell and the solenoid, and a live (non-navigable) preview of the platform.
 - **Cross-Platform** — ships as a web app or a native Windows desktop app via Electron.
