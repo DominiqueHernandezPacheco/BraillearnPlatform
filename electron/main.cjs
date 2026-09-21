@@ -119,6 +119,22 @@ ipcMain.handle('wake-word-status', () => {
   return { ready: false, engine: 'none', reason: 'Ningún motor de voz local pudo iniciar (revisa la consola de Electron).' };
 });
 
+// Activar a Braulio a mano (mantener Ctrl / pulsar su botón), sin decir la
+// palabra clave: útil cuando no hay audífonos y el micrófono oye a la vez la
+// voz de Braulio y la tuya. El comando transcrito llega al renderer por el mismo
+// evento de siempre ('braulio-command-captured').
+ipcMain.handle('braulio-capture-start', (_event, { autoStop } = {}) => {
+  if (voiceMode !== 'whisper-local') {
+    return { ok: false, reason: 'Ahora mismo el micrófono no está disponible para activarme con el teclado.' };
+  }
+  return localVoiceService.startManualCapture({ autoStop: !!autoStop });
+});
+
+ipcMain.handle('braulio-capture-stop', async () => {
+  await localVoiceService.finishManualCapture();
+  return { ok: true };
+});
+
 // Fase 2b: preguntas abiertas del asistente de voz -> API de Claude.
 // Se llama solo cuando el comando de voz no matcheó ningún comando local
 // (ver src/utils/voiceIntents.js).

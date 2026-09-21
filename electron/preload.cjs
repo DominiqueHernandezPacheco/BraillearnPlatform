@@ -21,6 +21,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('braulio-model-progress', listener);
   },
   getWakeWordStatus: () => ipcRenderer.invoke('wake-word-status'),
+  // Activar a Braulio a mano (sin decir la palabra clave). start devuelve
+  // { ok, reason? }; el texto llega por onCommandCaptured. autoStop: corta solo
+  // al dejar de hablar (botón); sin autoStop sigue hasta stopVoiceCapture()
+  // (mantener una tecla).
+  startVoiceCapture: (options) => ipcRenderer.invoke('braulio-capture-start', options),
+  stopVoiceCapture: () => ipcRenderer.invoke('braulio-capture-stop'),
   // Aviso empujado por el proceso principal en cuanto el motor de voz (Porcupine
   // o Whisper local) termina de arrancar — puede tardar varios segundos la
   // primera vez (carga del modelo), así que esto llega después de que la

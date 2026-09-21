@@ -26,9 +26,12 @@ const { PvRecorder } = require('@picovoice/pvrecorder-node');
 const SAMPLE_RATE = 16000; // PvRecorder siempre entrega a 16kHz, igual que Whisper
 const WAKE_WORD = 'braulio';
 const WAKE_WINDOW_SECONDS = 2.5; // ventana más corta = transcripción más rápida
-const WAKE_POLL_INTERVAL_MS = 900; // revisa más seguido para notar antes que empezaste a hablar
+const WAKE_POLL_INTERVAL_MS = 600; // revisa más seguido para notar antes que empezaste a hablar (era 900)
 const COMMAND_MAX_SECONDS = 8; // tope de seguridad si nunca deja de hablar
 const COMMAND_SILENCE_MS = 700; // cuánto silencio después de hablar cuenta como "ya terminó"
+const MANUAL_HOLD_MAX_SECONDS = 20; // tope de seguridad si se queda la tecla atorada
+const MANUAL_NO_SPEECH_SECONDS = 4; // con el botón: si nadie habla en este tiempo, se cancela
+const MANUAL_MIN_SECONDS = 0.4; // menos que esto es un toque accidental, no un comando
 const SILENCE_RMS_THRESHOLD = 0.005; // punto medio: 0.008 obligaba a gritar, 0.0035 alucinaba con ruido
 const MODEL_ID = 'Xenova/whisper-base'; // multilingüe; más preciso que "tiny" con nombres cortos
 const MAX_WAKE_WORD_DISTANCE = 3; // tolera errores de transcripción ("brabler", "brauleo" ~ "braulio")
@@ -102,6 +105,12 @@ class LocalVoiceService {
         this.ringBufferMaxSamples = Math.round(SAMPLE_RATE * WAKE_WINDOW_SECONDS);
         this._loopPromise = null;
         this._onFatalError = null;
+        this._onCommand = null;
+        // Captura a demanda (tecla o botón): mientras existe, los cuadros del
+        // micrófono se juntan aquí y NO se busca "Braulio" — así no hay
+        // detección de palabra clave escuchando (ni a la voz del propio asistente).
+        this._manual = null;
+        this._transcribeChain = Promise.resolve(); // una transcripción a la vez
     }
 
     _openRecorder() {
@@ -137,6 +146,7 @@ class LocalVoiceService {
     async start({ onWake, onCommand, onModelProgress, onFatalError } = {}) {
         if (this.running) return { ready: true };
         this._onFatalError = onFatalError || null;
+        this._onCommand = onCommand || null;
 
         console.log('[VoiceLocal] Cargando modelo Whisper (la primera vez se descarga, puede tardar)...');
         try {
@@ -199,7 +209,10 @@ class LocalVoiceService {
                     this.ringBuffer.shift();
                 }
 
-                if (samplesSinceLastCheck >= checkEverySamples) {
+                if (this._manual) {
+                    this._feedManual(floatFrame);
+                    samplesSinceLastCheck = 0;
+                } else if (samplesSinceLastCheck >= checkEverySamples) {
                     samplesSinceLastCheck = 0;
                     await this._checkForWakeWord(onWake, onCommand);
                 }
@@ -211,9 +224,81 @@ class LocalVoiceService {
         }
     }
 
-    async _transcribe(audio) {
-        const result = await this.transcriber(audio, { language: 'spanish', task: 'transcribe' });
-        return (result?.text || '').trim();
+    // Whisper procesa una transcripción a la vez: si la detección de "Braulio" y
+    // una captura manual coincidieran, se ponen en fila en vez de pisarse.
+    _transcribe(audio) {
+        const run = async () => {
+            const result = await this.transcriber(audio, { language: 'spanish', task: 'transcribe' });
+            return (result?.text || '').trim();
+        };
+        const job = this._transcribeChain.then(run, run);
+        this._transcribeChain = job.catch(() => {});
+        return job;
+    }
+
+    // ── Captura a demanda (mantener una tecla / pulsar el botón) ───────────────
+    // autoStop = true: corta sola cuando dejas de hablar (botón en pantalla).
+    // autoStop = false: sigue hasta que se llame a finishManualCapture() (mantener tecla).
+    startManualCapture({ autoStop = false } = {}) {
+        if (!this.running) return { ok: false, reason: 'El motor de voz local no está activo.' };
+        if (this._manual) return { ok: true };
+        this.ringBuffer = [];
+        this._manual = {
+            frames: [],
+            samples: 0,
+            recent: [],
+            sawSpeech: false,
+            silentStreak: 0,
+            autoStop,
+        };
+        console.log(`[VoiceLocal] Captura manual iniciada (${autoStop ? 'hasta el silencio' : 'mientras mantienes la tecla'}).`);
+        return { ok: true };
+    }
+
+    _feedManual(frame) {
+        const m = this._manual;
+        if (!m) return;
+        m.frames.push(frame);
+        m.samples += frame.length;
+        m.recent.push(frame);
+        if (m.recent.length > 5) m.recent.shift();
+
+        const level = rms(concatFloat32(m.recent));
+        if (level >= SILENCE_RMS_THRESHOLD) {
+            m.sawSpeech = true;
+            m.silentStreak = 0;
+        } else if (m.sawSpeech) {
+            m.silentStreak += frame.length;
+        }
+
+        const silenceDone = m.autoStop && m.sawSpeech && m.silentStreak >= SAMPLE_RATE * (COMMAND_SILENCE_MS / 1000);
+        const nothingSaid = m.autoStop && !m.sawSpeech && m.samples >= SAMPLE_RATE * MANUAL_NO_SPEECH_SECONDS;
+        const tooLong = m.samples >= SAMPLE_RATE * (m.autoStop ? COMMAND_MAX_SECONDS : MANUAL_HOLD_MAX_SECONDS);
+        if (silenceDone || nothingSaid || tooLong) this.finishManualCapture();
+    }
+
+    // Cierra la captura, transcribe y entrega el comando (o '' si no hubo nada).
+    async finishManualCapture() {
+        const m = this._manual;
+        if (!m) return;
+        this._manual = null;
+        this.ringBuffer = [];
+
+        const audio = concatFloat32(m.frames);
+        const seconds = audio.length / SAMPLE_RATE;
+        if (seconds < MANUAL_MIN_SECONDS || rms(audio) < SILENCE_RMS_THRESHOLD) {
+            console.log('[VoiceLocal] Captura manual sin voz, la descarto.');
+            this._onCommand?.('');
+            return;
+        }
+        try {
+            const text = await this._transcribe(audio);
+            console.log(`[VoiceLocal] Captura manual transcrita (${seconds.toFixed(1)} s): "${text}"`);
+            this._onCommand?.(text || '');
+        } catch (err) {
+            console.warn('[VoiceLocal] Error transcribiendo la captura manual:', err.message);
+            this._onCommand?.('');
+        }
     }
 
     async _checkForWakeWord(onWake, onCommand) {

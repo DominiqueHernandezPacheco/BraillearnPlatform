@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudio } from '../context/AudioContext';
+import { PHRASES } from '../utils/assistantPhrases';
 
 // Asistente de voz "Braulio".
 //
@@ -26,6 +27,15 @@ import { useAudio } from '../context/AudioContext';
 
 const COMMAND_TIMEOUT_MS = 6000;
 
+// Cuánto espera el "Dime" hablado por si el comando llega pegado a "Braulio"
+// (en ese caso los dos eventos llegan casi a la vez, en pocos milisegundos).
+const DIME_DELAY_MS = 120;
+
+// Mantener Ctrl izquierdo este tiempo (solo, sin otra tecla) activa a Braulio.
+const HOLD_TO_TALK_MS = 350;
+// Pausa entre el sonidito y el inicio de la grabación, para que no se grabe el sonidito.
+const CAPTURE_START_DELAY_MS = 220;
+
 // Errores de los que no tiene caso reintentar en modo web-fallback.
 const FATAL_ERRORS = new Set(['not-allowed', 'service-not-allowed', 'audio-capture']);
 const MAX_CONSECUTIVE_FAILURES = 5;
@@ -39,7 +49,7 @@ const normalize = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''
  * (navegar, preguntarle a Claude, etc.) lo decide quien use este hook.
  */
 const useVoiceAssistant = (onCommand) => {
-    const { speak } = useAudio();
+    const { speak, beginAssistantTurn, playCue } = useAudio();
     const [status, setStatus] = useState('idle'); // idle | listening | processing
     const [lastCommand, setLastCommand] = useState('');
     // Se decide una sola vez, de forma síncrona. En Electron el motor de voz
@@ -62,8 +72,36 @@ const useVoiceAssistant = (onCommand) => {
     useEffect(() => { speakRef.current = speak; }, [speak]);
     const onCommandRef = useRef(onCommand);
     useEffect(() => { onCommandRef.current = onCommand; }, [onCommand]);
+    const beginTurnRef = useRef(beginAssistantTurn);
+    useEffect(() => { beginTurnRef.current = beginAssistantTurn; }, [beginAssistantTurn]);
+    const playCueRef = useRef(playCue);
+    useEffect(() => { playCueRef.current = playCue; }, [playCue]);
+    const dimeTimerRef = useRef(null);
+
+    // Respuesta inmediata en cuanto se oye "Braulio": el sonidito, la pausa de lo
+    // que estuviera diciendo y el estado "escuchando". El "Dime" hablado sale un
+    // instante después y SOLO si no vino ya el comando pegado ("Braulio, ve a
+    // cursos"): en ese caso decir "Dime" estorbaría a la respuesta.
+    const acknowledgeWake = useCallback(({ dimeDelayMs = DIME_DELAY_MS } = {}) => {
+        beginTurnRef.current?.();
+        playCueRef.current?.('wake');
+        setStatus('listening');
+        clearTimeout(dimeTimerRef.current);
+        dimeTimerRef.current = setTimeout(
+            () => speakRef.current(PHRASES.dime, true, { priority: true }),
+            dimeDelayMs,
+        );
+    }, []);
+
+    // Captura a mano en curso (tecla o botón) — ver "Activar a mano" más abajo.
+    const captureActiveRef = useRef(false);   // hay una captura en curso o por empezar
+    const captureStartedRef = useRef(false);  // el micrófono ya empezó a grabar
+    const captureTimerRef = useRef(null);
 
     const handleCommand = useCallback(async (transcript) => {
+        clearTimeout(dimeTimerRef.current); // ya hay comando: no hace falta el "Dime"
+        captureActiveRef.current = false;
+        captureStartedRef.current = false;
         setLastCommand(transcript);
         setStatus('processing');
         console.log('[Braulio] Comando capturado:', JSON.stringify(transcript));
@@ -111,10 +149,7 @@ const useVoiceAssistant = (onCommand) => {
     useEffect(() => {
         if (mode !== 'electron') return;
 
-        const unsubWake = window.electronAPI.onWakeWord(() => {
-            speakRef.current('Dime', true);
-            setStatus('listening');
-        });
+        const unsubWake = window.electronAPI.onWakeWord(() => acknowledgeWake());
         const unsubCommand = window.electronAPI.onCommandCaptured((text) => {
             handleCommand(text);
         });
@@ -133,19 +168,14 @@ const useVoiceAssistant = (onCommand) => {
             unsubCommand?.();
             unsubStatus?.();
         };
-    }, [mode, handleCommand]);
+    }, [mode, handleCommand, acknowledgeWake]);
 
-    const triggerManuallyElectron = useCallback(() => {
-        // No hay forma de "forzar" el wake word local desde aquí todavía;
-        // esto es principalmente útil en modo web-fallback.
-        speakRef.current('Todavía no puedo activarme manualmente en este modo, di "Braulio".', true);
-    }, []);
 
     // ── Modo web-fallback (reconocimiento continuo del navegador) ──────
     const startListeningForCommand = useCallback(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            speakRef.current('No puedo escuchar comandos todavía, falta configurar el reconocimiento de voz.', true);
+            speakRef.current('No puedo escuchar comandos todavía, falta configurar el reconocimiento de voz.', true, { priority: true });
             return;
         }
         const recognition = new SpeechRecognition();
@@ -180,9 +210,132 @@ const useVoiceAssistant = (onCommand) => {
     }, [handleCommand]);
 
     const handleWakeWeb = useCallback(() => {
-        speakRef.current('Dime', true);
+        acknowledgeWake({ dimeDelayMs: 0 });
         setTimeout(startListeningForCommand, 400);
+    }, [startListeningForCommand, acknowledgeWake]);
+
+    // ── Activar a mano: botón en pantalla o mantener Ctrl izquierdo ────────────
+    // Sin audífonos el micrófono oye a la vez la voz de Braulio y la tuya, y la
+    // palabra clave no siempre logra "cortarlo". Con la tecla no hace falta: al
+    // pulsarla Braulio calla al instante y el micrófono queda solo para ti.
+    // (Modo push-to-talk: mantienes para hablar, sueltas para que procese.)
+    const modeRef = useRef(mode);
+    useEffect(() => { modeRef.current = mode; }, [mode]);
+
+    // Empieza una captura. autoStop: corta sola al dejar de hablar (botón).
+    const startManualCapture = useCallback(({ autoStop }) => {
+        if (captureActiveRef.current) return;
+        captureActiveRef.current = true;
+        captureStartedRef.current = false;
+        clearTimeout(dimeTimerRef.current);
+        beginTurnRef.current?.();     // calla a Braulio / pausa la lección
+        playCueRef.current?.('wake');
+        setStatus('listening');
+
+        if (modeRef.current === 'web-fallback') {
+            // Navegador: se detiene la escucha continua y se abre la del comando.
+            capturingCommandRef.current = true;
+            recognitionRef.current?.stop();
+            captureTimerRef.current = setTimeout(() => {
+                captureStartedRef.current = true;
+                startListeningForCommand();
+            }, CAPTURE_START_DELAY_MS + 130);
+            return;
+        }
+
+        // Electron: un instante para que el sonidito no se cuele en la grabación.
+        captureTimerRef.current = setTimeout(async () => {
+            let res;
+            try {
+                res = await window.electronAPI.startVoiceCapture?.({ autoStop });
+            } catch (err) {
+                res = { ok: false, reason: err?.message };
+            }
+            if (res?.ok) {
+                captureStartedRef.current = true;
+                return;
+            }
+            captureActiveRef.current = false;
+            setStatus('idle');
+            speakRef.current(res?.reason || PHRASES.noMic, true, { priority: true });
+        }, CAPTURE_START_DELAY_MS);
     }, [startListeningForCommand]);
+
+    // Suelta la tecla: termina de grabar y procesa lo que dijiste.
+    const finishManualCapture = useCallback(() => {
+        if (!captureActiveRef.current) return;
+        captureActiveRef.current = false;
+        const started = captureStartedRef.current;
+        captureStartedRef.current = false;
+
+        if (!started) {
+            // Soltó antes de que empezara a grabar: no hay nada que procesar.
+            clearTimeout(captureTimerRef.current);
+            if (modeRef.current === 'web-fallback') {
+                capturingCommandRef.current = false;
+                resumeContinuousRef.current?.();
+            }
+            setStatus('idle');
+            return;
+        }
+        setStatus('processing');
+        if (modeRef.current === 'web-fallback') recognitionRef.current?.stop();
+        else window.electronAPI.stopVoiceCapture?.();
+    }, []);
+
+    // Mantener Ctrl IZQUIERDO (la esquina inferior izquierda del teclado, fácil
+    // de ubicar al tacto). Solo cuenta si se mantiene un momento SIN tocar otra
+    // tecla ni el ratón: así Ctrl+C, AltGr, Ctrl+clic o la tecla que usan los
+    // lectores de pantalla para callarse no activan a Braulio por accidente.
+    useEffect(() => {
+        if (mode !== 'electron' && mode !== 'web-fallback') return undefined;
+
+        let holdTimer = null;
+        let holding = false;
+        let combo = false;
+        const isLeftCtrl = (e) => e.key === 'Control' && e.location === 1;
+
+        const release = () => {
+            clearTimeout(holdTimer);
+            if (holding) {
+                holding = false;
+                finishManualCapture();
+            }
+        };
+        const markCombo = () => {
+            combo = true;
+            clearTimeout(holdTimer);
+        };
+        const onKeyDown = (e) => {
+            if (!isLeftCtrl(e)) {
+                markCombo();
+                return;
+            }
+            if (e.repeat) return;
+            combo = false;
+            clearTimeout(holdTimer);
+            holdTimer = setTimeout(() => {
+                if (combo) return;
+                holding = true;
+                startManualCapture({ autoStop: false });
+            }, HOLD_TO_TALK_MS);
+        };
+        const onKeyUp = (e) => { if (isLeftCtrl(e)) release(); };
+
+        window.addEventListener('keydown', onKeyDown, true);
+        window.addEventListener('keyup', onKeyUp, true);
+        window.addEventListener('pointerdown', markCombo, true);
+        window.addEventListener('wheel', markCombo, { capture: true, passive: true });
+        window.addEventListener('blur', release);
+        return () => {
+            clearTimeout(holdTimer);
+            window.removeEventListener('keydown', onKeyDown, true);
+            window.removeEventListener('keyup', onKeyUp, true);
+            window.removeEventListener('pointerdown', markCombo, true);
+            window.removeEventListener('wheel', markCombo, true);
+            window.removeEventListener('blur', release);
+        };
+    }, [mode, startManualCapture, finishManualCapture]);
 
     const startFallbackListening = useCallback(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -209,12 +362,14 @@ const useVoiceAssistant = (onCommand) => {
 
                     if (afterWake.length > 2) {
                         recognition.stop();
+                        // Comando pegado a la palabra clave: sonidito y pausa YA, luego actúa.
+                        beginTurnRef.current?.();
+                        playCueRef.current?.('wake');
                         handleCommand(afterWake.replace(/^[,:.]\s*/, ''));
                     } else {
                         capturingCommandRef.current = true;
                         recognition.stop();
-                        speakRef.current('Dime', true);
-                        setStatus('listening');
+                        acknowledgeWake({ dimeDelayMs: 0 });
                         setTimeout(startListeningForCommand, 500);
                     }
                 }
@@ -254,7 +409,7 @@ const useVoiceAssistant = (onCommand) => {
 
         resumeContinuousRef.current = runContinuous;
         runContinuous();
-    }, [handleCommand, startListeningForCommand]);
+    }, [handleCommand, startListeningForCommand, acknowledgeWake]);
 
     useEffect(() => {
         if (mode === 'web-fallback') {
@@ -266,6 +421,9 @@ const useVoiceAssistant = (onCommand) => {
             };
         }
     }, [mode, startFallbackListening]);
+
+    // El botón en pantalla: graba hasta que dejes de hablar (sin tener que mantener nada).
+    const triggerManuallyElectron = useCallback(() => startManualCapture({ autoStop: true }), [startManualCapture]);
 
     const triggerManually =
         mode === 'electron' ? triggerManuallyElectron :
