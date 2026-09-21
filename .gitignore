@@ -33,3 +33,7 @@ dist-electron
 *.njsproj
 *.sln
 *.sw?
+
+# Voz: caché de audio generado y muestras de prueba
+.tts-cache/
+tts-samples/

@@ -17,6 +17,7 @@ const express = require('express');
 const cors = require('cors');
 const claudeService = require('../electron/claude/claudeService.cjs');
 const piperService = require('../electron/tts/piperService.cjs');
+const ttsService = require('../electron/tts/ttsService.cjs');
 
 const PORT = process.env.VOICE_SERVER_PORT || 8787;
 
@@ -25,7 +26,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, claude: claudeService.checkSetup() });
+    res.json({ ok: true, claude: claudeService.checkSetup(), tts: ttsService.status() });
 });
 
 app.post('/api/ask-claude', async (req, res) => {
@@ -52,11 +53,11 @@ app.post('/api/tts', async (req, res) => {
         return res.status(400).json({ error: 'Falta "text" (string) en el body.' });
     }
     try {
-        const audio = await piperService.synthesize(text, voiceId, rate);
-        res.set('Content-Type', 'audio/wav');
+        const { audio, mime } = await ttsService.synthesize(text, voiceId, rate);
+        res.set('Content-Type', mime);
         res.send(audio);
     } catch (err) {
-        console.error('[server] Error de Piper:', err.message);
+        console.error('[server] Error de voz:', err.message);
         res.status(500).json({ error: err.message });
     }
 });

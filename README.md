@@ -93,7 +93,10 @@ npm run electron:build    # packaged Windows installer -> dist-electron/
 Braulio listens for its wake word and then handles a command. Commands the app understands locally (see `src/utils/voiceIntents.js`) run immediately; anything else is sent to Claude, which answers out loud.
 
 - **Wake word:** Porcupine, using a custom `Braulio.ppn` model and your Picovoice AccessKey. Those files are **not** in the repository — see the header of `electron/wakeword/wakeWordService.cjs` for what to generate and where to put it. Without them, Braulio falls back to local Whisper (`Xenova/whisper-base`, downloaded on first use), which needs no account.
-- **Speech:** Piper generates the voice locally (engine and voice are downloaded on first use into `.piper/`). The bundled engine is currently **Windows x64 only**.
+- **Speech:** Braulio's voice comes from **ElevenLabs** when `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` are set in `.env`. Every generated phrase is cached on disk (`.tts-cache/`), so it is only paid for once, and a monthly character budget (`ELEVENLABS_MONTHLY_BUDGET`) keeps the plan from running out. If ElevenLabs is unreachable or the budget is spent, it falls back to **Piper**, which generates the voice locally (engine and voice are downloaded on first use into `.piper/`; the bundled engine is currently **Windows x64 only**), and then to the browser voice.
+  - `npm run tts:audition` renders a sample per candidate voice into `tts-samples/` so you can pick one.
+  - `npm run tts:pregenerate` generates and caches every fixed lesson narration ahead of time, so the first visit to a step has no wait.
+  - The API key may carry broad permissions, so `electron/tts/elevenlabsService.cjs` only allows the voices list, the credit balance and text-to-speech endpoints. Give the key just those three permissions.
 - **Where it runs:** in the Electron app, everything goes through the main process. In the browser, the platform calls the Express server (`npm run server`), which the Vite dev server proxies at `/api` (`/api/ask-claude`, `/api/tts`, `/api/tts/voices`, `/api/health`).
 - **Secrets:** the Anthropic key lives only in the server / Electron process, never in the browser bundle.
 

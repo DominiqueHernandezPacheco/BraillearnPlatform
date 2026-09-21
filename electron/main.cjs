@@ -5,6 +5,7 @@ const { WakeWordService } = require('./wakeword/wakeWordService.cjs');
 const { LocalVoiceService } = require('./voice/localVoiceService.cjs');
 const claudeService = require('./claude/claudeService.cjs');
 const piperService = require('./tts/piperService.cjs');
+const ttsService = require('./tts/ttsService.cjs');
 
 let mainWindow;
 const wakeWordService = new WakeWordService();
@@ -130,16 +131,16 @@ ipcMain.handle('ask-claude', async (_event, { text, context } = {}) => {
   }
 });
 
-// Fase 3: síntesis de voz con Piper (100% local). Devuelve el WAV como
-// ArrayBuffer para que el renderer lo reproduzca con la Web Audio API.
-// La primera vez que se llama con una voz nueva, la descarga (unos segundos);
-// las siguientes veces ya está en disco y responde al toque.
+// Síntesis de voz: ElevenLabs si está configurado (con caché y presupuesto
+// mensual), y Piper (100% local) como respaldo. Devuelve el audio como
+// ArrayBuffer + su tipo (MP3 de ElevenLabs o WAV de Piper) para que el
+// renderer lo reproduzca.
 ipcMain.handle('synthesize-speech', async (_event, { text, voiceId, rate } = {}) => {
   try {
-    const buffer = await piperService.synthesize(text, voiceId, rate);
-    return { audio: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) };
+    const { audio: buffer, mime } = await ttsService.synthesize(text, voiceId, rate);
+    return { audio: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), mime };
   } catch (err) {
-    console.error('[Piper] Error sintetizando:', err.message);
+    console.error('[TTS] Error sintetizando:', err.message);
     return { error: err.message };
   }
 });
