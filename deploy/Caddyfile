@@ -1,0 +1,6 @@
+# Caddy: pone HTTPS automático (certificado gratis de Let's Encrypt) delante de la app.
+# SITE_ADDRESS viene del .env (ej. 3-90-12-45.sslip.io, o el dominio propio).
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	reverse_proxy app:8787
+}

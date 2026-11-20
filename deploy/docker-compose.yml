@@ -1,0 +1,32 @@
+# Se ejecuta desde la carpeta deploy/:  docker compose --env-file ../.env up -d --build
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      TRUST_PROXY: "1"
+    volumes:
+      # Voces ya generadas (caché): sobreviven a reinicios y actualizaciones.
+      - ./tts-cache:/data/tts-cache
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy-data:
+  caddy-config:

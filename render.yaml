@@ -1,0 +1,19 @@
+# Render lee este archivo ("Blueprint") y crea el servicio solo.
+# Las claves NO van aquí: Render te las pide al crearlo (sync: false).
+services:
+  - type: web
+    name: braillearn
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: ELEVENLABS_MONTHLY_BUDGET
+        value: "36000"
+      - key: TRUST_PROXY
+        value: "1"

@@ -1,0 +1,13 @@
+{
+  "name": "braillearn-server",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Solo lo que necesita el servidor en producción (la web ya viene compilada en dist).",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
+    "adm-zip": "^0.6.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}
