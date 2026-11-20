@@ -16,10 +16,13 @@
 //      ("Braulio, llévame a mi última lección"), lo usa directo. Si no,
 //      graba ~5s más y transcribe eso como el comando.
 //
-// Limitación conocida: mientras transcribe (unos cientos de ms a un par de
-// segundos con el modelo "tiny"), no está leyendo el micrófono, así que
-// puede perderse un instante de audio. Aceptable para esta fase; si hace
-// falta más precisión, se resuelve con un hilo de captura aparte.
+// La detección de "Braulio" corre EN SEGUNDO PLANO respecto a la lectura del
+// micrófono (ver _startWakeCheck): antes, el bucle principal esperaba a que
+// Whisper terminara de transcribir cada chequeo antes de seguir leyendo
+// audio, así que si justo entonces se mantenía la tecla para hablarle a
+// mano, esa voz no se grababa (el micrófono estaba "congelado" esperando al
+// chequeo de fondo) — o el comando se perdía en la fila de Whisper sin
+// siquiera haber capturado bien lo que se dijo.
 
 const { PvRecorder } = require('@picovoice/pvrecorder-node');
 
@@ -32,7 +35,14 @@ const COMMAND_SILENCE_MS = 700; // cuánto silencio después de hablar cuenta co
 const MANUAL_HOLD_MAX_SECONDS = 20; // tope de seguridad si se queda la tecla atorada
 const MANUAL_NO_SPEECH_SECONDS = 4; // con el botón: si nadie habla en este tiempo, se cancela
 const MANUAL_MIN_SECONDS = 0.4; // menos que esto es un toque accidental, no un comando
-const SILENCE_RMS_THRESHOLD = 0.005; // punto medio: 0.008 obligaba a gritar, 0.0035 alucinaba con ruido
+const WAKE_TRANSCRIBE_TIMEOUT_MS = 6000; // ventana corta (2.5s de audio): si tarda más, algo va mal
+const COMMAND_TRANSCRIBE_TIMEOUT_MS = 12000; // hasta 8s de audio real + margen para transcribirlo
+// 0.008 obligaba a gritar; 0.0035 alucinaba con ruido de fondo; 0.005 (punto
+// medio anterior) TODAVÍA obliga a hablar fuerte en algunos micrófonos — esto
+// depende mucho de la ganancia de cada equipo, así que es una aproximación,
+// no un valor definitivo. Un paso más abajo, todavía por encima del piso que
+// alucinaba.
+const SILENCE_RMS_THRESHOLD = 0.0042;
 const MODEL_ID = 'Xenova/whisper-base'; // multilingüe; más preciso que "tiny" con nombres cortos
 const MAX_WAKE_WORD_DISTANCE = 3; // tolera errores de transcripción ("brabler", "brauleo" ~ "braulio")
 
@@ -111,6 +121,51 @@ class LocalVoiceService {
         // detección de palabra clave escuchando (ni a la voz del propio asistente).
         this._manual = null;
         this._transcribeChain = Promise.resolve(); // una transcripción a la vez
+        // Ver _startWakeCheck / _handleWakeDetected: el chequeo de "Braulio"
+        // corre aparte del bucle que lee el micrófono, para no bloquearlo.
+        this._wakeCheckBusy = false; // ya hay un chequeo en curso, no lancemos otro
+        this._pendingWake = null;    // resultado de un chequeo que encontró la palabra, listo para atenderse
+        // Braulio está hablando por las bocinas ahora mismo (lo avisa el renderer
+        // por IPC) — mientras tanto no tiene caso ni buscar la palabra clave, el
+        // micrófono solo capta su propia voz. El botón/tecla de activar a mano
+        // no pasa por aquí, así que sigue funcionando igual.
+        this._assistantSpeaking = false;
+        // Entre "detecté 'Braulio'" y "ya puedo empezar a grabar el comando" hay
+        // que esperar a que el renderer termine de decir "Dime" — si no, el
+        // micrófono graba esa misma voz y la confunde con el comando del usuario.
+        this._readyToListenResolve = null;
+    }
+
+    // Llamado por IPC desde main.cjs cuando cambia si Braulio está hablando.
+    setAssistantSpeaking(speaking) {
+        const wasSpeaking = this._assistantSpeaking;
+        this._assistantSpeaking = !!speaking;
+        // El buffer sigue llenándose aunque Braulio esté hablando (para no
+        // perder el principio si lo interrumpes — ver startManualCapture), así
+        // que puede traer SU PROPIA voz por las bocinas. Se limpia en CADA
+        // cambio de estado (empieza o termina de hablar), no solo al terminar:
+        // así ni una detección de palabra clave ni una captura manual
+        // arrancada justo al interrumpirlo heredan ese audio.
+        if (wasSpeaking !== this._assistantSpeaking) {
+            this.ringBuffer = [];
+        }
+    }
+
+    // Llamado por IPC desde main.cjs cuando el renderer terminó de decir "Dime"
+    // (o el equivalente) y ya se puede empezar a grabar el comando de verdad.
+    notifyReadyToListen() {
+        this._readyToListenResolve?.();
+        this._readyToListenResolve = null;
+    }
+
+    // Espera esa señal, con un plazo de seguridad por si el aviso nunca llega
+    // (el audio falló, la ventana no tiene foco, etc.) — mejor grabar un poco
+    // tarde que quedarse esperando para siempre.
+    _waitReadyToListen(timeoutMs = 3000) {
+        return new Promise((resolve) => {
+            this._readyToListenResolve = resolve;
+            setTimeout(resolve, timeoutMs);
+        });
     }
 
     _openRecorder() {
@@ -176,6 +231,18 @@ class LocalVoiceService {
         let consecutiveFailures = 0;
 
         while (this.running) {
+            // Un chequeo de fondo encontró "Braulio" — grabar el comando SÍ
+            // necesita control exclusivo del micrófono, así que aquí (y solo
+            // aquí) el bucle se detiene a propósito. Si mientras tanto ya
+            // empezó una captura manual (Ctrl/botón), esta detección quedó
+            // vieja: se descarta en vez de interrumpir lo que ya está en curso.
+            if (this._pendingWake) {
+                const detection = this._pendingWake;
+                this._pendingWake = null;
+                if (!this._manual) await this._handleWakeDetected(detection, onWake, onCommand);
+                continue;
+            }
+
             let frame;
             try {
                 frame = await this.recorder.read();
@@ -212,9 +279,9 @@ class LocalVoiceService {
                 if (this._manual) {
                     this._feedManual(floatFrame);
                     samplesSinceLastCheck = 0;
-                } else if (samplesSinceLastCheck >= checkEverySamples) {
+                } else if (samplesSinceLastCheck >= checkEverySamples && !this._wakeCheckBusy) {
                     samplesSinceLastCheck = 0;
-                    await this._checkForWakeWord(onWake, onCommand);
+                    this._startWakeCheck(); // en paralelo — NO se espera aquí, ver más abajo
                 }
             } catch (err) {
                 // Un error aquí (p.ej. Whisper) no debe tirar todo el bucle de
@@ -226,14 +293,31 @@ class LocalVoiceService {
 
     // Whisper procesa una transcripción a la vez: si la detección de "Braulio" y
     // una captura manual coincidieran, se ponen en fila en vez de pisarse.
-    _transcribe(audio) {
+    //
+    // Además, nunca se espera para siempre: si tarda más de `timeoutMs` (equipo
+    // lento, o simplemente atorado), se avisa como si no se hubiera entendido en
+    // vez de dejar a Braulio "pensando" sin contestar nada. La transcripción de
+    // verdad sigue corriendo en segundo plano (no se puede cancelar a medias:
+    // @xenova/transformers no expone eso), así que solo retrasa la SIGUIENTE
+    // transcripción en la fila, no la que el usuario ya dejó de esperar.
+    _transcribe(audio, timeoutMs = COMMAND_TRANSCRIBE_TIMEOUT_MS) {
         const run = async () => {
             const result = await this.transcriber(audio, { language: 'spanish', task: 'transcribe' });
             return (result?.text || '').trim();
         };
         const job = this._transcribeChain.then(run, run);
         this._transcribeChain = job.catch(() => {});
-        return job;
+
+        let timer;
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(() => {
+                const err = new Error(`Whisper tardó más de ${Math.round(timeoutMs / 1000)}s en transcribir.`);
+                err.code = 'timeout';
+                reject(err);
+            }, timeoutMs);
+        });
+        job.finally(() => clearTimeout(timer)).catch(() => {});
+        return Promise.race([job, timeout]);
     }
 
     // ── Captura a demanda (mantener una tecla / pulsar el botón) ───────────────
@@ -242,16 +326,30 @@ class LocalVoiceService {
     startManualCapture({ autoStop = false } = {}) {
         if (!this.running) return { ok: false, reason: 'El motor de voz local no está activo.' };
         if (this._manual) return { ok: true };
+        // El renderer espera ~350ms sosteniendo Ctrl antes de avisarle a esto
+        // que arranque (para no confundir un toque breve o un Ctrl+C con
+        // "quiero hablar") — si empezaste a hablar justo al presionar la
+        // tecla, ese principio se decía ANTES de que la grabación arrancara
+        // y se perdía ("ve a mensajes" salía transcrito como "masajes").
+        // `ringBuffer` ya venía grabando de fondo todo ese rato (lo usa la
+        // detección de "Braulio"), así que la captura arranca con eso en vez
+        // de en blanco — recupera el principio en lugar de perderlo.
+        const seedFrames = [...this.ringBuffer];
+        const seedSamples = seedFrames.reduce((n, f) => n + f.length, 0);
+        const seedHasSpeech = seedFrames.length > 0 && rms(concatFloat32(seedFrames)) >= SILENCE_RMS_THRESHOLD;
         this.ringBuffer = [];
         this._manual = {
-            frames: [],
-            samples: 0,
-            recent: [],
-            sawSpeech: false,
+            frames: seedFrames,
+            samples: seedSamples,
+            recent: seedFrames.slice(-5),
+            sawSpeech: seedHasSpeech,
             silentStreak: 0,
             autoStop,
         };
-        console.log(`[VoiceLocal] Captura manual iniciada (${autoStop ? 'hasta el silencio' : 'mientras mantienes la tecla'}).`);
+        console.log(
+            `[VoiceLocal] Captura manual iniciada (${autoStop ? 'hasta el silencio' : 'mientras mantienes la tecla'}), ` +
+            `${(seedSamples / SAMPLE_RATE).toFixed(2)}s de audio previo recuperado.`,
+        );
         return { ok: true };
     }
 
@@ -286,13 +384,17 @@ class LocalVoiceService {
 
         const audio = concatFloat32(m.frames);
         const seconds = audio.length / SAMPLE_RATE;
-        if (seconds < MANUAL_MIN_SECONDS || rms(audio) < SILENCE_RMS_THRESHOLD) {
+        // `m.sawSpeech` ya viene calculado por ventanas mientras se grababa (ver
+        // _feedManual) — más confiable que promediar el volumen de TODO el clip,
+        // que con la tecla mantenida casi siempre trae silencio de sobra al
+        // principio o al final y podía diluir una voz corta hasta "no hubo nada".
+        if (seconds < MANUAL_MIN_SECONDS || !m.sawSpeech) {
             console.log('[VoiceLocal] Captura manual sin voz, la descarto.');
             this._onCommand?.('');
             return;
         }
         try {
-            const text = await this._transcribe(audio);
+            const text = await this._transcribe(audio, COMMAND_TRANSCRIBE_TIMEOUT_MS);
             console.log(`[VoiceLocal] Captura manual transcrita (${seconds.toFixed(1)} s): "${text}"`);
             this._onCommand?.(text || '');
         } catch (err) {
@@ -301,41 +403,71 @@ class LocalVoiceService {
         }
     }
 
-    async _checkForWakeWord(onWake, onCommand) {
-        if (!this.running) return;
+    // Dispara la detección de "Braulio" SIN esperarla (fire-and-forget) — si
+    // el bucle principal la esperara, se quedaría sin leer el micrófono
+    // mientras Whisper transcribe (puede ser varios segundos), y una
+    // captura manual que arrancara justo entonces perdería lo que dijiste.
+    // El resultado (si encontró la palabra) se deja en `_pendingWake` para
+    // que _runLoop lo atienda en su siguiente vuelta.
+    _startWakeCheck() {
+        if (!this.running || this._assistantSpeaking) return;
         const audio = concatFloat32(this.ringBuffer);
         const level = rms(audio);
         if (level < SILENCE_RMS_THRESHOLD) return; // silencio, ni lo intentamos
 
-        let text = '';
-        try {
-            text = await this._transcribe(audio);
-        } catch (err) {
-            console.warn('[VoiceLocal] Error transcribiendo:', err.message);
-            return;
-        }
+        this._wakeCheckBusy = true;
+        this._detectWakeWord(audio, level)
+            .then((detection) => {
+                if (detection) this._pendingWake = detection;
+            })
+            .catch((err) => {
+                console.warn('[VoiceLocal] Error transcribiendo:', err.message);
+            })
+            .finally(() => {
+                this._wakeCheckBusy = false;
+            });
+    }
+
+    // Transcribe el audio ya capturado y busca "Braulio" — no toca el
+    // micrófono para nada, así que es seguro que corra en paralelo a la
+    // lectura de audio del bucle principal.
+    async _detectWakeWord(audio, level) {
+        const text = await this._transcribe(audio, WAKE_TRANSCRIBE_TIMEOUT_MS);
         // Log de diagnóstico: muestra TODO lo que transcribe, aunque no
         // contenga "braulio" — así vemos si el mic funciona y qué entiende.
         console.log(`[VoiceLocal] (diagnóstico) rms=${level.toFixed(4)} transcripción: "${text}"`);
-        if (!text) return;
+        if (!text) return null;
 
         const normalized = normalize(text);
         const match = findWakeWord(normalized);
-        if (!match) return;
+        if (!match) return null;
 
         console.log('[VoiceLocal] "Braulio" detectado en:', text);
-        this.ringBuffer = [];
-        onWake?.();
-
         const afterWake = text
             .slice(match.index + match.length)
             .trim()
             .replace(/^[,:.]\s*/, '');
+        return { afterWake };
+    }
+
+    // Ya se detectó "Braulio" (ver _startWakeCheck) — de aquí en adelante SÍ
+    // hace falta control exclusivo del micrófono para grabar el comando, así
+    // que _runLoop se dedica por completo a esto hasta que termine.
+    async _handleWakeDetected({ afterWake }, onWake, onCommand) {
+        if (!this.running) return;
+        this.ringBuffer = [];
+        onWake?.();
 
         if (afterWake.length > 2) {
             onCommand?.(afterWake);
             return;
         }
+
+        // Espera a que el renderer termine de decir "Dime" antes de grabar — si
+        // no, el micrófono capta esa misma voz y la transcribe como si fuera el
+        // comando del usuario.
+        await this._waitReadyToListen();
+        if (!this.running) return;
 
         const commandAudio = await this._recordUntilSilence();
         if (!this.running) return;
@@ -349,7 +481,9 @@ class LocalVoiceService {
         }
 
         try {
-            const commandText = await this._transcribe(commandAudio);
+            const commandSeconds = commandAudio.length / SAMPLE_RATE;
+            const commandText = await this._transcribe(commandAudio, COMMAND_TRANSCRIBE_TIMEOUT_MS);
+            console.log(`[VoiceLocal] Comando (tras "Braulio") transcrito (${commandSeconds.toFixed(1)} s): "${commandText}"`);
             if (commandText) onCommand?.(commandText);
             else onCommand?.('');
         } catch (err) {

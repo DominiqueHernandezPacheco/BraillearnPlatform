@@ -27,6 +27,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // (mantener una tecla).
   startVoiceCapture: (options) => ipcRenderer.invoke('braulio-capture-start', options),
   stopVoiceCapture: () => ipcRenderer.invoke('braulio-capture-stop'),
+  // Avisa cuando Braulio empieza/termina de hablar, para que el motor de voz
+  // local no intente detectar "Braulio" en su propia voz.
+  setAssistantSpeaking: (speaking) => ipcRenderer.send('braulio-assistant-speaking', !!speaking),
+  // Avisa que ya terminó de decir "Dime" (o el equivalente) y se puede grabar
+  // el comando de verdad — ver 'braulio-ready-to-listen' en main.cjs.
+  notifyReadyToListen: () => ipcRenderer.send('braulio-ready-to-listen'),
   // Aviso empujado por el proceso principal en cuanto el motor de voz (Porcupine
   // o Whisper local) termina de arrancar — puede tardar varios segundos la
   // primera vez (carga del modelo), así que esto llega después de que la
@@ -38,6 +44,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   // Fase 2b: pregunta abierta -> Claude. Devuelve { text, navigateTo, error? }
   askClaude: (text, context) => ipcRenderer.invoke('ask-claude', { text, context }),
+  // Cada oración de la respuesta de Claude, en cuanto está lista (antes de
+  // que termine toda la respuesta) — ver 'ask-claude' arriba.
+  onAnswerChunk: (callback) => {
+    const listener = (_event, sentence) => callback(sentence);
+    ipcRenderer.on('braulio-answer-chunk', listener);
+    return () => ipcRenderer.removeListener('braulio-answer-chunk', listener);
+  },
 
   // Fase 3: voz de Braulio con Piper (local). Devuelve { audio: ArrayBuffer, error? }
   synthesizeSpeech: (text, voiceId, rate) => ipcRenderer.invoke('synthesize-speech', { text, voiceId, rate }),

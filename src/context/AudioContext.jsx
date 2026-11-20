@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { PRELOAD_PHRASES } from '../utils/assistantPhrases';
+import { useAccessibility } from './AccessibilityContext';
 
 const AudioContext = createContext();
 
@@ -25,26 +26,41 @@ async function requestSpeech(text, voiceId, rate) {
 
 // Frases cortas ya sintetizadas, en memoria: "Dime" y las confirmaciones se
 // repiten mucho y así suenan al instante (sin viaje a Electron ni al servidor).
-const SHORT_PHRASE_MAX = 200;
-const PHRASE_CACHE_MAX = 80;
+// También guarda las que todavía se están generando (la promesa), para que
+// pedir por adelantado la siguiente oración de un cuento no genere dos veces
+// lo mismo si justo después se pide hablarla.
+const SHORT_PHRASE_MAX = 400;
+const PHRASE_CACHE_MAX = 120;
 const phraseCache = new Map();
 
-async function synthesizeWithPiper(text, voiceId, rate) {
+function synthesizeWithPiper(text, voiceId, rate) {
     const cacheable = !voiceId && text.length <= SHORT_PHRASE_MAX;
     const key = `${rate}|${text}`;
     if (cacheable && phraseCache.has(key)) return phraseCache.get(key);
 
-    const blob = await requestSpeech(text, voiceId, rate);
+    const pending = requestSpeech(text, voiceId, rate);
     if (cacheable) {
-        phraseCache.set(key, blob);
+        phraseCache.set(key, pending);
+        pending.catch(() => phraseCache.delete(key));
         if (phraseCache.size > PHRASE_CACHE_MAX) phraseCache.delete(phraseCache.keys().next().value);
     }
-    return blob;
+    return pending;
 }
 
 export const AudioProvider = ({ children }) => {
     const [isMuted, setIsMuted] = useState(false);
+    // Ajuste APARTE de isMuted: silencia solo los efectos de sonido de la
+    // interfaz (aciertos/errores, tap de botones), no la voz de Braulio.
+    const { soundEffects } = useAccessibility() ?? {};
     const [isSpeaking, setIsSpeaking] = useState(false); // Braulio está hablando ahora mismo
+    // Distinto de isSpeaking: un turno (p.ej. contestar una pregunta con
+    // varias oraciones encoladas) sigue "activo" incluso en el hueco entre
+    // una oración y la siguiente, mientras se sintetiza la voz de la próxima
+    // — ahí isSpeaking ya volvió a false por un instante. Si el motor de voz
+    // local dejara de considerarlo "hablando" justo en ese hueco, podría
+    // detectar "Braulio" (o escucharse a sí mismo) mientras sigue en plena
+    // respuesta. Ver beginAssistantTurn / finalizeEndTurn.
+    const [turnActive, setTurnActive] = useState(false);
     const [availableVoices, setAvailableVoices] = useState([]);
     const synthRef = useRef(window.speechSynthesis);
     const currentAudioRef = useRef(null); // el <audio> de Piper que esté sonando
@@ -52,6 +68,39 @@ export const AudioProvider = ({ children }) => {
     // se pidió hablar de nuevo, se descarta en vez de reproducirse encima de
     // la nueva — sin esto, dos audios solapados sonaban como eco.
     const speakTokenRef = useRef(0);
+
+    // Una bocina o unos audífonos Bluetooth que llevan rato sin sonar se
+    // "duermen" y se tragan el primer segundo de lo que suene después: una
+    // frase corta ("Estás en Mensajes.") se perdía entera, mientras que una
+    // larga solo perdía el inicio. Si la salida lleva callada más de
+    // OUTPUT_IDLE_MS, antes de hablar se emite un instante de señal inaudible
+    // (WAKE_LEAD_MS) para despertarla. Corre en paralelo a la síntesis de la
+    // voz, así casi no añade espera.
+    const OUTPUT_IDLE_MS = 20000;
+    const WAKE_LEAD_MS = 600;
+    const lastSoundAtRef = useRef(0);
+    const wakeCtxRef = useRef(null);
+    const wakeOutput = useCallback(() => {
+        if (Date.now() - lastSoundAtRef.current < OUTPUT_IDLE_MS) return Promise.resolve();
+        try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return Promise.resolve();
+            const ctx = (wakeCtxRef.current ??= new Ctx());
+            if (ctx.state === 'suspended') ctx.resume();
+            const length = Math.ceil((ctx.sampleRate * WAKE_LEAD_MS) / 1000);
+            const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < length; i += 1) data[i] = (Math.random() * 2 - 1) * 0.0008;
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start();
+        } catch {
+            return Promise.resolve();
+        }
+        lastSoundAtRef.current = Date.now();
+        return new Promise((resolve) => setTimeout(resolve, WAKE_LEAD_MS));
+    }, []);
 
     // ── Nuevas preferencias del panel de accesibilidad (persistidas) ───────────
     const [speechRate, setSpeechRateState] = useState(
@@ -122,6 +171,21 @@ export const AudioProvider = ({ children }) => {
         if (speakTokenRef.current === token) setIsSpeaking(value);
     }, []);
 
+    // Avisa al motor de voz local (proceso principal) cuando Braulio empieza o
+    // termina de hablar por las bocinas — mientras habla, el micrófono solo
+    // captaría su propia voz, así que ese rato no tiene caso ni buscar la
+    // palabra clave (ver localVoiceService.cjs). Sin efecto fuera de Electron.
+    //
+    // isSpeaking solo es true mientras hay audio SONANDO en este instante —
+    // entre una oración encolada y la siguiente hay un hueco (se está
+    // sintetizando la próxima) donde isSpeaking ya volvió a false aunque la
+    // respuesta sigue en curso. Si solo se usara isSpeaking, ese hueco dejaba
+    // la puerta abierta para detectar "Braulio" en su propia voz a medio
+    // contestar. turnActive cubre TODO el turno, de punta a punta.
+    useEffect(() => {
+        window.electronAPI?.setAssistantSpeaking?.(isSpeaking || turnActive);
+    }, [isSpeaking, turnActive]);
+
     // ── Turno del asistente ────────────────────────────────────────────────────
     // Cuando el usuario dice "Braulio" en plena lección, lo que Braulio estaba
     // diciendo se PAUSA (no se descarta): el asistente escucha, responde o hace
@@ -133,11 +197,12 @@ export const AudioProvider = ({ children }) => {
     const heldRef = useRef(null);             // { text } — narración pedida durante el turno
     const inFlightRef = useRef(null);         // texto de una narración que aún se está sintetizando
     const currentTextRef = useRef('');        // última narración normal pedida
-    const pendingPriorityRef = useRef(0);     // respuestas del asistente aún en camino
+    const pendingPriorityRef = useRef(0);     // respuestas del asistente aún en camino (fetch/síntesis)
     const resumeWhenIdleRef = useRef(false);
     const speakRef = useRef(null);
     const maybeResumeRef = useRef(() => {});
-    const endAssistantTurnRef = useRef(() => {});
+    const finalizeEndTurnRef = useRef(() => {});
+    const pendingEndRef = useRef(false);      // se pidió terminar el turno, pero la cola aún habla
 
     // ¿Está el asistente ocupado con el usuario? Hay turno abierto, una respuesta
     // suya en camino o su voz sonando.
@@ -174,16 +239,73 @@ export const AudioProvider = ({ children }) => {
         setIsSpeaking(false);
     }, [discardSuspended]);
 
-    const beginAssistantTurn = useCallback(() => {
+    // ── Cola de la respuesta del asistente ──────────────────────────────────────
+    // Cuando la respuesta de Claude llega en streaming, cada oración se encola en
+    // cuanto está lista y se dicen EN ORDEN, una tras otra — a diferencia de un
+    // speak(..., {priority:true}) suelto, que si se llama de nuevo antes de que
+    // termine el anterior lo interrumpe (le serviría de poco encolar si cada
+    // oración nueva cortara a la anterior a la mitad).
+    const sayQueueRef = useRef([]);
+    const sayBusyRef = useRef(false);
+
+    const resetSayQueue = useCallback(() => {
+        sayQueueRef.current = [];
+        sayBusyRef.current = false;
+        pendingEndRef.current = false;
+    }, []);
+
+    const runSayQueue = useCallback(() => {
+        if (sayBusyRef.current) return;
+        const next = sayQueueRef.current.shift();
+        if (next === undefined) {
+            // La cola quedó vacía: si alguien pidió terminar el turno mientras
+            // todavía se hablaba, es hasta ahora que de verdad se puede terminar.
+            if (pendingEndRef.current) {
+                pendingEndRef.current = false;
+                finalizeEndTurnRef.current?.();
+            }
+            return;
+        }
+        sayBusyRef.current = true;
+        speakRef.current?.(next, true, {
+            priority: true,
+            onDone: () => {
+                sayBusyRef.current = false;
+                runSayQueue();
+            },
+        });
+    }, []);
+
+    const queueSay = useCallback((text) => {
+        const clean = (text || '').trim();
+        if (!clean) return;
+        sayQueueRef.current.push(clean);
+        runSayQueue();
+    }, [runSayQueue]);
+
+    // `force` (lo usa Ctrl/el botón de activar a mano): si Braulio ya está a
+    // media respuesta cuando se pide un NUEVO turno, sin esto no pasaba nada
+    // — turnRef ya era true, así que este mismo begin salía sin cortarlo ni
+    // limpiar la cola, y seguía hablando de lo anterior en vez de callarse
+    // para escuchar la pregunta nueva.
+    const beginAssistantTurn = useCallback(({ force = false } = {}) => {
         clearTimeout(turnTimerRef.current);
-        turnTimerRef.current = setTimeout(() => endAssistantTurnRef.current(), 45000);
-        if (turnRef.current) return;
+        turnTimerRef.current = setTimeout(() => {
+            // Último recurso: si esto se disparó es que algo se quedó atorado de
+            // verdad (45s reales) — se fuerza a terminar aunque la cola diga que
+            // sigue ocupada, en vez de dejar la app "pensando" para siempre.
+            resetSayQueue();
+            finalizeEndTurnRef.current?.();
+        }, 45000);
+        if (turnRef.current && !force) return;
         turnRef.current = true;
+        setTurnActive(true);
         resumeWhenIdleRef.current = false;
+        resetSayQueue(); // una respuesta anterior a medias no debe seguir sonando
         // Una narración que todavía se estaba generando también espera su turno.
         if (inFlightRef.current) heldRef.current = { text: inFlightRef.current };
         suspendCurrent();
-    }, [suspendCurrent]);
+    }, [suspendCurrent, resetSayQueue]);
 
     // Continúa lo pausado cuando ya no hay turno ni respuesta del asistente sonando.
     const maybeResume = useCallback(() => {
@@ -224,26 +346,40 @@ export const AudioProvider = ({ children }) => {
         }, 250);
     }, [discardSuspended, markSpeaking]);
 
-    const endAssistantTurn = useCallback(() => {
+    // Termina el turno DE VERDAD: deja de bloquear la narración pausada.
+    const finalizeEndTurn = useCallback(() => {
         clearTimeout(turnTimerRef.current);
         if (!turnRef.current) return;
         turnRef.current = false;
+        setTurnActive(false);
         resumeWhenIdleRef.current = true;
         maybeResumeRef.current();
     }, []);
 
+    // Lo que se expone hacia afuera. Si la respuesta del asistente TODAVÍA se
+    // está diciendo (la cola de queueSay sigue ocupada), no termina el turno de
+    // una vez — si no, la narración pausada podría intentar seguir a la mitad de
+    // la respuesta. Se termina de verdad en cuanto runSayQueue() vacíe la cola.
+    const endAssistantTurn = useCallback(() => {
+        if (sayBusyRef.current || sayQueueRef.current.length > 0) {
+            pendingEndRef.current = true;
+            return;
+        }
+        finalizeEndTurn();
+    }, [finalizeEndTurn]);
+
     useEffect(() => {
         maybeResumeRef.current = maybeResume;
-        endAssistantTurnRef.current = endAssistantTurn;
-    }, [maybeResume, endAssistantTurn]);
+        finalizeEndTurnRef.current = finalizeEndTurn;
+    }, [maybeResume, finalizeEndTurn]);
 
-    const speakWithBrowser = useCallback((text) => {
+    const speakWithBrowser = useCallback((text, onDone) => {
         if (synthRef.current.speaking) synthRef.current.cancel();
         const token = speakTokenRef.current;
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.onstart = () => markSpeaking(token, true);
-        utterance.onend = () => { markSpeaking(token, false); maybeResumeRef.current(); };
-        utterance.onerror = () => { markSpeaking(token, false); maybeResumeRef.current(); };
+        utterance.onend = () => { markSpeaking(token, false); maybeResumeRef.current(); onDone?.(); };
+        utterance.onerror = () => { markSpeaking(token, false); maybeResumeRef.current(); onDone?.(); };
         const bestVoice = getBestBrowserVoice();
         if (bestVoice) utterance.voice = bestVoice;
         utterance.rate = speechRate;
@@ -255,9 +391,11 @@ export const AudioProvider = ({ children }) => {
 
     // `priority: true` = lo dice el asistente (responde al usuario). Hablarle a
     // Braulio pausa la narración; las narraciones normales que lleguen durante
-    // ese turno esperan a que termine.
-    const speak = useCallback((text, forceInterrupt = false, { priority = false } = {}) => {
-        if (isMuted || !text) return;
+    // ese turno esperan a que termine. `onDone` (opcional) se llama exactamente
+    // una vez, se haya podido hablar o no — lo usa la cola de arriba para saber
+    // cuándo puede pasar a la siguiente oración.
+    const speak = useCallback((text, forceInterrupt = false, { priority = false, onDone } = {}) => {
+        if (isMuted || !text) { onDone?.(); return; }
 
         // Mientras el asistente le habla al usuario (o está por hacerlo), las
         // narraciones normales esperan: si no, la del paso o pantalla nuevo le
@@ -265,11 +403,12 @@ export const AudioProvider = ({ children }) => {
         if (!priority && assistantIsBusy()) {
             heldRef.current = { text };
             resumeWhenIdleRef.current = true;
+            onDone?.();
             return;
         }
 
         const isBusy = currentAudioRef.current && !currentAudioRef.current.paused;
-        if (!forceInterrupt && isBusy) return;
+        if (!forceInterrupt && isBusy) { onDone?.(); return; }
 
         if (priority) {
             if (!turnRef.current) beginAssistantTurn();
@@ -293,14 +432,15 @@ export const AudioProvider = ({ children }) => {
         // La velocidad se le pide a Piper al sintetizar (--length_scale), no
         // se le aplica al audio ya grabado después — estirar/comprimir un WAV
         // con playbackRate sonaba con eco/artefactos.
-        synthesizeWithPiper(text, undefined, speechRate)
-            .then((blob) => {
+        Promise.all([synthesizeWithPiper(text, undefined, speechRate), wakeOutput()])
+            .then(([blob]) => {
                 if (inFlightRef.current === text) inFlightRef.current = null;
-                if (speakTokenRef.current !== myToken) return; // ya se pidió otra cosa, descartamos esta
+                if (speakTokenRef.current !== myToken) { onDone?.(); return; } // ya se pidió otra cosa, descartamos esta
                 // Llegó cuando el usuario ya le estaba hablando a Braulio: espera su turno.
                 if (!priority && assistantIsBusy()) {
                     heldRef.current = { text };
                     resumeWhenIdleRef.current = true;
+                    onDone?.();
                     return;
                 }
                 const url = URL.createObjectURL(blob);
@@ -310,17 +450,19 @@ export const AudioProvider = ({ children }) => {
                 audio.onplay = () => markSpeaking(myToken, true);
                 audio.onpause = () => markSpeaking(myToken, false);
                 audio.onended = () => {
+                    lastSoundAtRef.current = Date.now();
                     URL.revokeObjectURL(url);
                     markSpeaking(myToken, false);
                     maybeResumeRef.current();
+                    onDone?.();
                 };
-                audio.play().catch(() => speakWithBrowser(text));
+                audio.play().catch(() => speakWithBrowser(text, onDone));
             })
             .catch((err) => {
                 if (inFlightRef.current === text) inFlightRef.current = null;
-                if (speakTokenRef.current !== myToken) return;
+                if (speakTokenRef.current !== myToken) { onDone?.(); return; }
                 console.warn('[Audio] Piper no disponible, uso la voz del navegador:', err.message);
-                speakWithBrowser(text);
+                speakWithBrowser(text, onDone);
             })
             .finally(() => {
                 if (priority) {
@@ -328,39 +470,53 @@ export const AudioProvider = ({ children }) => {
                     maybeResumeRef.current();
                 }
             });
-    }, [isMuted, speechRate, speakWithBrowser, markSpeaking, beginAssistantTurn, discardSuspended, assistantIsBusy]);
+    }, [isMuted, speechRate, speakWithBrowser, markSpeaking, beginAssistantTurn, discardSuspended, assistantIsBusy, wakeOutput]);
 
     useEffect(() => { speakRef.current = speak; }, [speak]);
 
-    // Sonidito de "te escucho": dos notas que suben, generadas al momento con Web
-    // Audio (no dependen de ninguna voz ni de la red), para que haya respuesta
-    // inmediata en cuanto se detecta "Braulio", antes de que hable.
+    // Efectos de sonido cortos, generados al momento con Web Audio (no dependen
+    // de ninguna voz ni de la red). Respetan el ajuste "Efectos de sonido" del
+    // panel de accesibilidad — APARTE de silenciar la voz de Braulio (isMuted):
+    // así se puede tener sonido de interfaz sin voz, o voz sin sonido.
     // (Ojo: aquí `AudioContext` es el contexto de React, no el de Web Audio.)
     const cueContextRef = useRef(null);
-    const playCue = useCallback((kind = 'wake') => {
-        if (isMuted) return;
+    const playTone = useCallback((notes, { gain = 0.16, dur = 0.17, gap = 0.09 } = {}) => {
+        if (!soundEffects) return;
         try {
             const Ctx = window.AudioContext || window.webkitAudioContext;
             if (!Ctx) return;
             const ctx = (cueContextRef.current ??= new Ctx());
             if (ctx.state === 'suspended') ctx.resume();
-            const notes = kind === 'wake' ? [659.25, 880] : [880, 659.25]; // mi → la (sube = "dime")
             const start = ctx.currentTime;
             notes.forEach((freq, i) => {
-                const t = start + i * 0.09;
+                const t = start + i * gap;
                 const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
+                const g = ctx.createGain();
+                // Triangular en vez de senoidal: un poco más de cuerpo, menos "tono
+                // de prueba" — a juego con el timbre cálido de useBrailleSound.js.
+                osc.type = 'triangle';
                 osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0.0001, t);
-                gain.gain.linearRampToValueAtTime(0.16, t + 0.015);
-                gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
-                osc.connect(gain).connect(ctx.destination);
+                g.gain.setValueAtTime(0.0001, t);
+                g.gain.linearRampToValueAtTime(gain, t + 0.018);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+                osc.connect(g).connect(ctx.destination);
                 osc.start(t);
-                osc.stop(t + 0.19);
+                osc.stop(t + dur + 0.02);
             });
-        } catch { /* sin Web Audio: solo se pierde el sonidito */ }
-    }, [isMuted]);
+        } catch { /* sin Web Audio: solo se pierde el sonido */ }
+    }, [soundEffects]);
+
+    // "Te escuché" / "ya puedes hablar" del asistente de voz: dos notas.
+    const playCue = useCallback((kind = 'wake') => {
+        playTone(kind === 'wake' ? [659.25, 880] : [880, 659.25]); // mi→la sube, la→mi baja
+    }, [playTone]);
+
+    // Tap genérico de botones: una nota sola, corta y discreta — misma familia
+    // tonal que el resto (E5), pensado para sonar en cualquier botón de la app
+    // sin saturar (ver App.jsx).
+    const playClick = useCallback(() => {
+        playTone([659.25], { gain: 0.05, dur: 0.05, gap: 0 });
+    }, [playTone]);
 
     // Precarga las frases fijas del asistente (el servidor las guarda en disco, así
     // que después de la primera vez ni cuestan ni tardan). Se hace al abrir la app,
@@ -378,6 +534,16 @@ export const AudioProvider = ({ children }) => {
         return () => { cancelled = true; clearTimeout(timer); };
     }, [isMuted, speechRate]);
 
+    // Pide la voz de estas frases por adelantado (sin reproducirlas): cuando
+    // llegue su turno ya están listas y suenan sin hueco. Lo usa el lector de
+    // cuentos para tener lista la oración que sigue.
+    const preloadSpeech = useCallback((texts) => {
+        if (isMuted) return;
+        texts.forEach((text) => {
+            if (text) synthesizeWithPiper(text, undefined, speechRate).catch(() => {});
+        });
+    }, [isMuted, speechRate]);
+
     // Corta lo que Braulio esté diciendo (voz de Piper o del navegador), descarta
     // cualquier síntesis que todavía esté en camino y olvida lo que estaba pausado
     // (se llama al cambiar de pantalla: lo pausado ya no aplica).
@@ -390,8 +556,9 @@ export const AudioProvider = ({ children }) => {
         heldRef.current = null;
         inFlightRef.current = null;
         resumeWhenIdleRef.current = false;
+        resetSayQueue();
         setIsSpeaking(false);
-    }, [discardSuspended]);
+    }, [discardSuspended, resetSayQueue]);
 
     const toggleMute = () => {
         setIsMuted(prev => {
@@ -401,6 +568,7 @@ export const AudioProvider = ({ children }) => {
                 currentAudioRef.current?.pause();
                 discardSuspended();
                 heldRef.current = null;
+                resetSayQueue();
                 setIsSpeaking(false);
             }
             return newState;
@@ -420,11 +588,16 @@ export const AudioProvider = ({ children }) => {
             isMuted,
             toggleMute,
             speak,
+            preloadSpeech,
             stop,
             beginAssistantTurn,
             endAssistantTurn,
+            queueSay,
+            resetSayQueue,
             playCue,
+            playClick,
             isSpeaking,
+            turnActive,
             // Nuevos: expuestos para el panel de accesibilidad
             speechRate,
             setSpeechRate,

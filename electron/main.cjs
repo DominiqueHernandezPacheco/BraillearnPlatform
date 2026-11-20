@@ -135,12 +135,30 @@ ipcMain.handle('braulio-capture-stop', async () => {
   return { ok: true };
 });
 
+// El renderer avisa cuando Braulio empieza/termina de hablar por las bocinas,
+// para que el motor de voz local no intente detectar "Braulio" en su propia
+// voz (mientras habla, el micrófono solo la captaría a ella).
+ipcMain.on('braulio-assistant-speaking', (_event, speaking) => {
+  localVoiceService.setAssistantSpeaking(!!speaking);
+});
+
+// El renderer avisa cuando terminó de decir "Dime" (o el equivalente) y ya se
+// puede grabar el comando de verdad — si se empezara a grabar antes, el
+// micrófono captaría ese mismo "Dime" y lo confundiría con el comando.
+ipcMain.on('braulio-ready-to-listen', () => {
+  localVoiceService.notifyReadyToListen();
+});
+
 // Fase 2b: preguntas abiertas del asistente de voz -> API de Claude.
 // Se llama solo cuando el comando de voz no matcheó ningún comando local
-// (ver src/utils/voiceIntents.js).
-ipcMain.handle('ask-claude', async (_event, { text, context } = {}) => {
+// (ver src/utils/voiceIntents.js). La respuesta llega en streaming: cada
+// oración se manda al renderer apenas está lista ('braulio-answer-chunk'),
+// para que empiece a hablar sin esperar a que termine toda la respuesta.
+ipcMain.handle('ask-claude', async (event, { text, context } = {}) => {
   try {
-    return await claudeService.ask(text, context);
+    return await claudeService.ask(text, context, {
+      onSentence: (sentence) => event.sender.send('braulio-answer-chunk', sentence),
+    });
   } catch (err) {
     console.error('[Claude] Error:', err.message);
     return { text: '', navigateTo: null, error: err.message };

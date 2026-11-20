@@ -64,15 +64,22 @@ function saveUsage() {
     } catch { /* la caché es opcional */ }
 }
 
-// Una vez por proceso: si la cuenta ya gastó créditos por otro lado (la web
-// de ElevenLabs, las pruebas de voces), toma el número real.
+// Una vez por proceso: el saldo real de ElevenLabs manda sobre el contador
+// local, en cualquier dirección — no solo cuando el real es mayor. El
+// contador local es solo un conteo propio (líneas: `u.chars += text.length`
+// en synthesizeCloud) y se puede desincronizar por arriba del real sin que
+// nada lo corrija — por ejemplo si hay más de un proceso local (Electron y
+// el servidor web, o varios `npm run dev` sueltos) escribiendo cada uno su
+// propio conteo en el mismo archivo. Antes esto solo ajustaba hacia arriba,
+// así que un contador local inflado se quedaba fijo ahí "gastado" para
+// siempre aunque la cuenta real tuviera saldo de sobra.
 async function syncUsage() {
     if (usageSynced) return;
     usageSynced = true;
     try {
         const remote = await eleven.getUsage();
         const u = loadUsage();
-        if (typeof remote.used === 'number' && remote.used > u.chars) {
+        if (typeof remote.used === 'number' && remote.used !== u.chars) {
             u.chars = remote.used;
             saveUsage();
         }
@@ -118,7 +125,18 @@ async function synthesizeCloud(text, rate, { quality = false } = {}) {
         throw e;
     }
 
-    const audio = await eleven.synthesize(text, { voiceId, rate, modelId: model });
+    // Un hipo de red o un 429 pasajero no debería tirarnos a la voz de repuesto
+    // (que suena completamente distinta) para una sola frase — un reintento
+    // rápido primero. Si de plano es la clave o el presupuesto, no insiste.
+    let audio;
+    try {
+        audio = await eleven.synthesize(text, { voiceId, rate, modelId: model });
+    } catch (err) {
+        if (err.code === 'auth' || err.code === 'budget') throw err;
+        console.warn('[TTS] ElevenLabs falló, reintento una vez:', eleven.redact(err.message));
+        await new Promise((r) => setTimeout(r, 400));
+        audio = await eleven.synthesize(text, { voiceId, rate, modelId: model });
+    }
     u.chars += text.length;
     saveUsage();
     try {
