@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, MessageSquareText } from 'lucide-react';
+import { ArrowRight, BookHeart, Check, MessageSquareText } from 'lucide-react';
 import TactileCell from '../../common/TactileCell';
 import Braulio from '../../common/Braulio';
 import { braillePatterns } from '../../../constants/braillePatterns';
@@ -236,6 +236,25 @@ const Home = ({ handleNav, onOpenModule }) => {
                         );
                     })}
                 </ol>
+            </section>
+
+            {/* ── Cuentos ────────────────────────────────────────────────── */}
+            <section aria-labelledby="stories-title" className="card flex flex-col gap-6 p-7 md:flex-row md:items-center md:justify-between md:p-10">
+                <div className="flex items-start gap-5">
+                    <span aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-good-soft text-good">
+                        <BookHeart className="h-7 w-7" />
+                    </span>
+                    <div>
+                        <h2 id="stories-title" className="text-2xl md:text-3xl">Cuentos</h2>
+                        <p className="mt-2 max-w-[38ch] text-lg text-ink-soft">
+                            Lee cuentos con los dedos en el display, o escúchalos con sonidos y vibraciones.
+                        </p>
+                    </div>
+                </div>
+                <button type="button" className="btn btn-secondary btn-lg shrink-0" onClick={() => handleNav?.('cuentos')}>
+                    Ver los cuentos
+                    <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                </button>
             </section>
 
             {/* ── Mensajes ───────────────────────────────────────────────── */}

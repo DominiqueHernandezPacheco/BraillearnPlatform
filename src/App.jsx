@@ -8,6 +8,7 @@ import { NAV_ITEMS } from './components/layout/navItems';
 import Home from './components/features/Home/Home';
 import CourseSection from './components/features/Courses/CourseSection';
 import MessagesSection from './components/features/Messages/MessagesSection';
+import StoriesSection from './components/features/Stories/StoriesSection';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import AccessibilityPanel from './components/features/AccessibilityPanel/AccessibilityPanel';
 import OnboardingTour from './components/features/Onboarding/OnboardingTour';
@@ -16,13 +17,16 @@ import VoiceAssistantIndicator from './components/features/VoiceAssistant/VoiceA
 import { useAccessibility } from './context/AccessibilityContext';
 import { useAudio } from './context/AudioContext';
 import { useProgress } from './hooks/useProgress';
+import { useActiveLesson } from './hooks/useActiveLesson';
 import useVoiceAssistant from './hooks/useVoiceAssistant';
 import { matchLocalIntent } from './utils/voiceIntents';
 import { PHRASES, NAV_CONFIRMATIONS } from './utils/assistantPhrases';
+import { track } from './utils/telemetry';
 
 const PAGE_TITLES = {
   plataforma: 'Inicio',
   cursos: 'Cursos',
+  cuentos: 'Cuentos',
   mensajes: 'Mensajes',
 };
 
@@ -31,7 +35,7 @@ const FONT_SCALES = [0.875, 1, 1.125, 1.25];
 
 // ── Rutas: cada sección tiene su propia URL (#/cursos), así funcionan el
 // botón "atrás" del navegador y los enlaces directos. ─────────────────────
-const PAGE_BY_SLUG = { inicio: 'plataforma', cursos: 'cursos', mensajes: 'mensajes' };
+const PAGE_BY_SLUG = { inicio: 'plataforma', cursos: 'cursos', cuentos: 'cuentos', mensajes: 'mensajes' };
 const HASH_BY_PAGE = Object.fromEntries(NAV_ITEMS.map((item) => [item.page, item.hash]));
 
 const pageFromHash = () => {
@@ -43,9 +47,22 @@ const pageFromHash = () => {
 // al proceso principal por IPC (la API key vive ahí). En el navegador
 // (Chrome, para pruebas) le pega al servidor local (server/index.cjs) vía
 // el proxy de Vite — la key tampoco llega nunca al navegador en ese caso.
-async function askClaude(text, context) {
+//
+// En Electron la respuesta llega en streaming: si se pasa `onChunk`, se llama
+// con cada oración apenas está lista (antes de que termine toda la
+// respuesta), para poder ir hablando sin esperar el final. El navegador no
+// tiene esa vía (es solo para pruebas rápidas), así que ahí `onChunk` no se
+// llama nunca y quien pidió la respuesta debe usar el `.text` final.
+async function askClaude(text, context, { onChunk } = {}) {
   if (window.electronAPI?.askClaude) {
-    return window.electronAPI.askClaude(text, context);
+    const unsubscribe = onChunk && window.electronAPI.onAnswerChunk
+      ? window.electronAPI.onAnswerChunk(onChunk)
+      : null;
+    try {
+      return await window.electronAPI.askClaude(text, context);
+    } finally {
+      unsubscribe?.();
+    }
   }
   const res = await fetch('/api/ask-claude', {
     method: 'POST',
@@ -60,8 +77,11 @@ async function askClaude(text, context) {
   return res.json();
 }
 
-// Si Claude tarda más que esto en contestar, Braulio dice "Un momento".
-const THINKING_DELAY_MS = 900;
+// Si Claude no ha mandado ni la primera oración en este tiempo, Braulio avisa
+// que sigue ahí en vez de dejar puro silencio — pero solo si de plano se está
+// tardando: antes eran 900ms y se sentía que lo decía de más hasta en
+// respuestas rápidas, así que ahora es más generoso.
+const THINKING_DELAY_MS = 4000;
 
 // Cuando Claude rechaza la clave (401) no tiene caso pedir "inténtalo de nuevo":
 // Braulio lo dice claro, y los comandos locales ("ir a cursos") siguen sirviendo.
@@ -77,8 +97,9 @@ export default function App() {
   const {
     fontScale, setFontScale, setHighContrast, setReduceMotion,
   } = useAccessibility();
-  const { speak, stop, beginAssistantTurn, endAssistantTurn } = useAudio();
+  const { speak, stop, beginAssistantTurn, endAssistantTurn, queueSay, resetSayQueue, playClick } = useAudio();
   const { lastLesson } = useProgress();
+  const activeLesson = useActiveLesson(); // lección que se está viendo AHORA, para el contexto de Claude
 
   // El botón "atrás" (o un enlace #/cursos) cambia la sección.
   useEffect(() => {
@@ -86,6 +107,20 @@ export default function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  // Un "tap" discreto en cualquier botón o enlace de navegación de la app —
+  // un solo listener delegado, así no hay que tocar cada componente. Respeta
+  // el ajuste de efectos de sonido (playClick ya lo revisa) y es aparte de la
+  // voz, para que la interfaz no se sienta silenciosa aunque Braulio calle.
+  useEffect(() => {
+    const onClick = (e) => {
+      const el = e.target.closest('button, nav a');
+      if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return;
+      playClick();
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [playClick]);
 
   // Al cambiar de sección: título de la pestaña, arriba del todo y foco en el
   // encabezado principal — así un lector de pantalla anuncia dónde estás.
@@ -134,7 +169,7 @@ export default function App() {
       setOpenModuleRequest({ moduleId: MODULE_BY_DESTINATION[destination], requestedAt: Date.now() });
       return;
     }
-    const PAGE_BY_DESTINATION = { inicio: 'plataforma', cursos: 'cursos', mensajes: 'mensajes' };
+    const PAGE_BY_DESTINATION = { inicio: 'plataforma', cursos: 'cursos', cuentos: 'cuentos', mensajes: 'mensajes' };
     const page = PAGE_BY_DESTINATION[destination];
     if (page) handleNav(page);
   }, [handleNav, lastLesson]);
@@ -177,12 +212,16 @@ export default function App() {
 
   // ── Fase 2: qué hacer con lo que "Braulio" capturó ──────────────────────
   const runVoiceCommand = useCallback(async (transcript) => {
+    // Solo se registran tiempos y el tipo de comando — nunca lo que se dijo.
+    const startedAt = performance.now();
     if (!transcript) {
+      track('voice_command', { kind: 'empty' });
       say(PHRASES.noSpeech);
       return;
     }
 
     const intent = matchLocalIntent(transcript);
+    if (intent) track('voice_command', { kind: 'local', intent: intent.type, words: transcript.trim().split(/\s+/).length });
 
     if (intent?.type === 'navigate') {
       handleNav(intent.page);
@@ -222,15 +261,35 @@ export default function App() {
     }
 
     // Fase 2b: nada local matcheó — se manda como pregunta abierta a Claude
-    // (en Electron, directo por IPC; en el navegador, vía el servidor local).
-    // Claude puede tardar unos segundos: si la respuesta no llega enseguida,
-    // Braulio avisa que está pensando en vez de dejar el silencio.
+    // (en Electron, directo por IPC, en streaming; en el navegador, vía el
+    // servidor local, de un solo golpe). En cuanto llega la primera oración
+    // se dice YA, sin esperar a que termine toda la respuesta — las
+    // siguientes se encolan y se dicen en orden, sin cortarse entre sí (ver
+    // queueSay en AudioContext). "Un momento" solo sale si de plano se tarda
+    // (ver THINKING_DELAY_MS) — se cancela en cuanto llega la primera oración.
     const thinkingTimer = setTimeout(() => say(PHRASES.thinking), THINKING_DELAY_MS);
+    let spokeAnyChunk = false;
+    let firstChunkMs = null;
     try {
-      const result = await askClaude(transcript, { currentPage });
+      const result = await askClaude(transcript, { currentPage, activeLesson }, {
+        onChunk: (sentence) => {
+          clearTimeout(thinkingTimer);
+          spokeAnyChunk = true;
+          if (firstChunkMs === null) firstChunkMs = Math.round(performance.now() - startedAt);
+          queueSay(sentence);
+        },
+      });
       clearTimeout(thinkingTimer);
+      track('voice_command', {
+        kind: 'claude',
+        ok: !result?.error,
+        words: transcript.trim().split(/\s+/).length,
+        first_ms: firstChunkMs,
+        total_ms: Math.round(performance.now() - startedAt),
+      });
       if (result?.error) {
         console.error('[Braulio] Error de Claude:', result.error);
+        resetSayQueue();
         say(isAuthError(result.error) ? PHRASES.authError : PHRASES.genericError);
         return;
       }
@@ -238,13 +297,15 @@ export default function App() {
         if (action.tool === 'navigate_app') applyNavigateTo(action.input?.destination);
         else if (action.tool === 'set_accessibility') applyAccessibilitySetting(action.input?.setting);
       }
-      say(result?.text || PHRASES.ok);
+      // Si no llegó nada por streaming (navegador de pruebas), se dice la respuesta completa.
+      if (!spokeAnyChunk) say(result?.text || PHRASES.ok);
     } catch (err) {
       clearTimeout(thinkingTimer);
+      resetSayQueue();
       console.error('[Braulio] Error llamando a Claude:', err);
       say(isAuthError(err?.message) ? PHRASES.authError : PHRASES.genericError);
     }
-  }, [say, handleNav, lastLesson, currentPage, applyNavigateTo, applyAccessibilitySetting]);
+  }, [say, handleNav, lastLesson, currentPage, activeLesson, applyNavigateTo, applyAccessibilitySetting, queueSay, resetSayQueue]);
 
   // Hablarle a Braulio pausa la narración en curso; al terminar (respuesta o
   // acción) la lección continúa donde iba.
@@ -257,7 +318,7 @@ export default function App() {
     }
   }, [runVoiceCommand, beginAssistantTurn, endAssistantTurn]);
 
-const { status, lastCommand, mode, triggerManually } = useVoiceAssistant(handleVoiceCommand);
+  const { status, lastCommand, mode, triggerManually } = useVoiceAssistant(handleVoiceCommand);
 
   // Si te escuchó pero no hubo comando (silencio, o el micrófono se cortó),
   // el turno termina solo y la lección continúa.
@@ -298,6 +359,12 @@ const { status, lastCommand, mode, triggerManually } = useVoiceAssistant(handleV
               onRequestHandled={() => setOpenModuleRequest(null)}
               onOpenPanel={() => setIsPanelOpen(true)}
             />
+          </ErrorBoundary>
+        )}
+
+        {currentPage === 'cuentos' && (
+          <ErrorBoundary>
+            <StoriesSection onOpenPanel={() => setIsPanelOpen(true)} />
           </ErrorBoundary>
         )}
 

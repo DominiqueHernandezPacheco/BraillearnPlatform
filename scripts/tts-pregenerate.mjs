@@ -29,8 +29,28 @@ for (const m of COURSES_DATA) {
     });
 }
 
+// Los cuentos: Braulio los dice oración por oración (así el lector ilumina lo
+// que va diciendo), con exactamente el texto que usa el lector.
+const { STORIES } = await import('../src/data/storyData.js');
+const { splitSentences } = await import('../src/utils/storyText.js');
+for (const story of STORIES) {
+    story.scenes.forEach((scene, i) => {
+        splitSentences(scene.text).forEach((sentence, j) => {
+            phrases.push({ label: `Cuento «${story.title}» · parte ${i + 1}.${j + 1}`, text: sentence.text });
+        });
+    });
+}
+
+// Las tres velocidades del panel de accesibilidad (Lenta, Normal, Rápida): la
+// caché es por velocidad, así que cada una necesita su propia tanda. Se puede
+// elegir una con --rate=0.75 (o 1, o 1.5).
+const ALL_RATES = [1, 0.75, 1.5];
+const rateArg = process.argv.find((a) => a.startsWith('--rate='));
+const rates = rateArg ? [Number(rateArg.split('=')[1])] : ALL_RATES;
+
 const totalChars = phrases.reduce((n, p) => n + p.text.length, 0);
-console.log(`${phrases.length} frases · ${totalChars} caracteres · voz: ${tts.provider()}\n`);
+console.log(`${phrases.length} frases · ${totalChars} caracteres por velocidad · velocidades: ${rates.join(', ')} · voz: ${tts.provider()}`);
+console.log(`Como máximo ${totalChars * rates.length} caracteres si nada estuviera en caché.\n`);
 if (dry) process.exit(0);
 
 if (tts.provider() !== 'elevenlabs') {
@@ -41,16 +61,19 @@ if (tts.provider() !== 'elevenlabs') {
 let fresh = 0;
 let cached = 0;
 let failed = 0;
-for (const { label, text } of phrases) {
-    try {
-        const result = await tts.synthesize(text, undefined, 1, { quality: true });
-        if (result.mime !== 'audio/mpeg') throw new Error('se usó Piper (respaldo), no se guardó');
-        if (result.cached) cached += 1;
-        else fresh += 1;
-        console.log(`  ${result.cached ? '=' : '✓'} ${label} (${text.length} car.)`);
-    } catch (err) {
-        failed += 1;
-        console.log(`  ✗ ${label}: ${err.message}`);
+for (const rate of rates) {
+    console.log(`\n── Velocidad ${rate} ──`);
+    for (const { label, text } of phrases) {
+        try {
+            const result = await tts.synthesize(text, undefined, rate, { quality: true });
+            if (result.mime !== 'audio/mpeg') throw new Error('se usó Piper (respaldo), no se guardó');
+            if (result.cached) cached += 1;
+            else fresh += 1;
+            if (!result.cached) console.log(`  ✓ ${label} (${text.length} car.)`);
+        } catch (err) {
+            failed += 1;
+            console.log(`  ✗ ${label}: ${err.message}`);
+        }
     }
 }
 

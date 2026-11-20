@@ -490,3 +490,40 @@ body[data-lesson="feedback"] [data-voice-pill] { bottom: 13rem; }
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* ── Cuentos: el bosque y el texto que se ilumina ─────────────────────────── */
+/* Lo que está en el display (o lo que Braulio dice) se ilumina en el texto. */
+.story-lit {
+  background: var(--sun);
+  color: var(--on-sun);
+  border-radius: 0.45em;
+  padding: 0.02em 0.16em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  box-shadow: 0 0 0 0.1em var(--sun), 0 0 1.1em color-mix(in srgb, var(--sun) 60%, transparent);
+  transition: background-color 0.25s;
+}
+
+.forest { background: linear-gradient(#dff4ff, #e9f8ec 55%, #bfe6c8); }
+.high-contrast .forest { background: var(--page); }
+.high-contrast .forest-art { display: none; }
+
+.firefly { animation: firefly 3.4s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.tree-sway { transform-box: fill-box; transform-origin: 50% 100%; animation: treeSway 7s ease-in-out infinite; animation-delay: var(--d, 0s); }
+@keyframes firefly {
+  0%, 100% { opacity: 0.15; transform: translateY(0); }
+  50%      { opacity: 1;    transform: translateY(-14px); }
+}
+@keyframes treeSway {
+  0%, 100% { transform: rotate(-0.8deg); }
+  50%      { transform: rotate(0.8deg); }
+}
+
+/* Cuentos clásicos: estudio de noche y papel crema para el texto */
+.classic-bg { background: linear-gradient(#1b1f3a, #2d1b33 60%, #1a1220); }
+.high-contrast .classic-bg { background: var(--page); }
+.high-contrast .classic-art { display: none; }
+.classic-card { background: rgba(247, 240, 223, 0.97); color: #2a2118; }
+.classic-card .text-ink-faint { color: #7b6f5f; }
+.high-contrast .classic-card { background: var(--surface); color: var(--ink); }
+.high-contrast .classic-card .text-ink-faint { color: var(--ink-faint); }

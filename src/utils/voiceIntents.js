@@ -7,6 +7,10 @@
 
 const RULES = [
     {
+        test: /cuento|biblioteca|leer (un |una )?(libro|historia)|(l[eé]eme|l[eé]ame) (algo|una historia)/,
+        intent: { type: 'navigate', page: 'cuentos', anchor: 'cuentos-top' },
+    },
+    {
         test: /(ultima|última).*(leccion|lección)|donde me quede|donde me quedé|continua(r)?.*quede/,
         intent: { type: 'open-last-lesson' },
     },

@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "tts:audition": "node scripts/tts-audition.cjs",
     "tts:pregenerate": "node scripts/tts-pregenerate.mjs",
+    "sfx:generate": "node scripts/sfx-generate.mjs",
     "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173/plataforma/ electron .\"",
     "electron:build": "vite build && electron-builder"
   },

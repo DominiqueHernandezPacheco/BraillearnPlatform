@@ -51,7 +51,8 @@ export const braillePatterns = {
   '?': [false, true, true, false, false, true],
   '¿': [false, true, false, false, false, true],
   '!': [false, true, true, false, true, false],
-  '¡': [false, true, true, false, true, false], 
+  '¡': [false, true, true, false, true, false],
+  '-': [false, false, true, false, false, true],
   // Prefijos
   'number_prefix': [false, false, true, true, true, true],
   'capital_prefix': [false, false, false, false, false, true],

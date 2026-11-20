@@ -4,7 +4,8 @@
 //
 // SEGURIDAD: la clave puede tener permisos de toda la cuenta, así que este
 // cliente solo puede llamar a las rutas de la lista blanca de abajo (voces,
-// saldo de créditos y texto a voz). Cualquier otra ruta se rechaza aquí mismo.
+// saldo de créditos, texto a voz y efectos de sonido). Cualquier otra ruta se
+// rechaza aquí mismo.
 //
 // Se usa igual desde Electron (por IPC) y desde el servidor web (por HTTP);
 // ambos entran por electron/tts/ttsService.cjs, que añade caché y respaldo.
@@ -27,6 +28,7 @@ const ALLOWED = [
     { method: 'GET', path: /^\/voices$/ },
     { method: 'GET', path: /^\/user\/subscription$/ },
     { method: 'POST', path: /^\/text-to-speech\/[A-Za-z0-9]+$/ },
+    { method: 'POST', path: /^\/sound-generation$/ },
 ];
 
 const apiKey = () => (process.env.ELEVENLABS_API_KEY || '').trim();
@@ -38,7 +40,7 @@ const redact = (value) => {
     return key ? String(value).split(key).join('***') : String(value);
 };
 
-async function request(method, pathname, { query, body } = {}) {
+async function request(method, pathname, { query, body, timeout = 20000 } = {}) {
     if (!ALLOWED.some((rule) => rule.method === method && rule.path.test(pathname))) {
         throw new Error(`Ruta de ElevenLabs no permitida: ${method} ${pathname}`);
     }
@@ -56,7 +58,7 @@ async function request(method, pathname, { query, body } = {}) {
                 ...(body ? { 'Content-Type': 'application/json' } : {}),
             },
             body: body ? JSON.stringify(body) : undefined,
-            signal: AbortSignal.timeout(20000),
+            signal: AbortSignal.timeout(timeout),
         });
     } catch (err) {
         const e = new Error(`No se pudo contactar a ElevenLabs: ${redact(err.message)}`);
@@ -122,11 +124,27 @@ async function synthesize(text, { voiceId, modelId = DEFAULT_MODEL, rate = 1 } =
     return Buffer.from(await res.arrayBuffer());
 }
 
+// Descripción -> efecto de sonido (MP3). Solo lo usa `npm run sfx:generate`:
+// los efectos se generan una vez y se guardan como archivos del proyecto.
+async function generateSoundEffect(prompt, { durationSeconds } = {}) {
+    const res = await request('POST', '/sound-generation', {
+        query: { output_format: 'mp3_44100_128' },
+        body: {
+            text: prompt,
+            duration_seconds: durationSeconds,
+            prompt_influence: 0.4,
+        },
+        timeout: 60000,
+    });
+    return Buffer.from(await res.arrayBuffer());
+}
+
 module.exports = {
     isConfigured,
     listVoices,
     getUsage,
     synthesize,
+    generateSoundEffect,
     redact,
     DEFAULT_MODEL,
     FAST_MODEL,
