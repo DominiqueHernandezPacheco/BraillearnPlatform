@@ -8,6 +8,15 @@ const DEFAULT_PREFS = {
     fontScale:     1,       // 0.875 | 1 | 1.125 | 1.25
     reduceMotion:  false,
     highContrast:  false,
+    // Efectos de sonido (aciertos/errores, notas de la celda, tap de botones) —
+    // aparte de la voz de Braulio: para poder silenciar solo la voz y quedarse
+    // con retroalimentación sonora, o al revés. Por defecto activados: son
+    // parte de la retroalimentación accesible, no solo un adorno.
+    soundEffects:  true,
+    // Narración breve: al entrar a una pantalla o a un paso de lección Braulio
+    // solo dice dónde estás, en vez de leer todo. Por defecto apagada: quien
+    // usa la plataforma sin ver necesita que lea cada paso completo.
+    briefNarration: false,
 };
 
 export const AccessibilityProvider = ({ children }) => {
@@ -48,6 +57,8 @@ export const AccessibilityProvider = ({ children }) => {
     const setFontScale    = (v) => setPrefs(p => ({ ...p, fontScale: v }));
     const setReduceMotion = (v) => setPrefs(p => ({ ...p, reduceMotion: v }));
     const setHighContrast = (v) => setPrefs(p => ({ ...p, highContrast: v }));
+    const setSoundEffects = (v) => setPrefs(p => ({ ...p, soundEffects: v }));
+    const setBriefNarration = (v) => setPrefs(p => ({ ...p, briefNarration: v }));
 
     const resetAll = () => {
         setPrefs(DEFAULT_PREFS);
@@ -61,9 +72,13 @@ export const AccessibilityProvider = ({ children }) => {
             fontScale:     prefs.fontScale,
             reduceMotion:  prefs.reduceMotion,
             highContrast:  prefs.highContrast,
+            soundEffects:  prefs.soundEffects,
+            briefNarration: prefs.briefNarration,
+            setBriefNarration,
             setFontScale,
             setReduceMotion,
             setHighContrast,
+            setSoundEffects,
             resetAll,
         }}>
             {children}

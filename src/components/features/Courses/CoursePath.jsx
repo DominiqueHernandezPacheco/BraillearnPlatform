@@ -4,6 +4,7 @@ import GuideNote from '../../common/GuideNote';
 import { getIcon } from '../../../utils/iconMap';
 import { getChapterRanges } from '../../../data/courseData';
 import { useAudio } from '../../../context/AudioContext';
+import { useAccessibility } from '../../../context/AccessibilityContext';
 import { useProgress } from '../../../hooks/useProgress';
 
 // Sombras tipo "repisa" de cada estado de nodo (mismo lenguaje que los botones).
@@ -19,6 +20,7 @@ const moduleName = (title) => title.replace(/^Módulo \d+:\s*/, '');
 
 const CoursePath = ({ modules, onStart }) => {
     const { speak } = useAudio();
+    const { briefNarration } = useAccessibility() ?? {};
     const { completedLessons, lastLesson, stepProgress } = useProgress();
 
     const isDone = (id) => completedLessons.includes(id);
@@ -45,25 +47,49 @@ const CoursePath = ({ modules, onStart }) => {
         return reached == null ? 0 : Math.min(reached, m.lessons.length - 1);
     };
 
-    // Anuncia el camino al abrir — importante para quien navega solo con voz o teclado.
+    const guide = !started
+        ? 'Empieza por el Módulo 1. Son pasos cortitos y yo te los voy leyendo en voz alta.'
+        : recommended
+            ? `Vas en el ${recommended.title.split(':')[0]}. Toca “Continuar”, o presiona la flecha derecha, y seguimos donde te quedaste.`
+            : '¡Completaste todo el camino! Puedes repasar el módulo que quieras.';
+
+    // Atajo: flecha derecha te lleva directo a donde te quedaste — SOLO en
+    // esta pantalla. Dentro de una lección esa misma tecla ya significa
+    // "siguiente paso" o "saltar ejercicio" (ver CourseSection.jsx), así que
+    // este listener vive nada más aquí y se va en cuanto sales de Cursos.
+    useEffect(() => {
+        if (!recommended) return undefined;
+        const onKeyDown = (e) => {
+            if (e.key !== 'ArrowRight') return;
+            const tag = document.activeElement?.tagName;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+            e.preventDefault();
+            onStart(recommended, resumeIndex(recommended));
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [recommended]);
+
+    // Anuncia el camino al abrir — importante para quien navega solo con voz o
+    // teclado. La primera vez conviene el recorrido completo (cuántos módulos
+    // hay, cómo se llaman, cómo navegarlos); después ya lo sabes, así que
+    // repetirlo cada vez que entras a Cursos se siente repetitivo — basta con
+    // decir dónde vas, igual que ya dice el texto en pantalla (`guide`).
     useEffect(() => {
         const timer = setTimeout(() => {
-            speak(
-                `Tu camino del Braille. Hay ${modules.length} módulos: ` +
-                    `${modules.map((m, i) => `${i + 1}, ${moduleName(m.title)}`).join('. ')}. ` +
-                    'Usa Tab para recorrerlos y Enter para abrir uno.',
-                true,
-            );
+            const text = briefNarration
+                ? 'Estás en Cursos.'
+                : !started
+                    ? `Tu camino del Braille. Hay ${modules.length} módulos: ` +
+                        `${modules.map((m, i) => `${i + 1}, ${moduleName(m.title)}`).join('. ')}. ` +
+                        'Usa Tab para recorrerlos y Enter para abrir uno.'
+                    : `Tu camino del Braille. ${guide}`;
+            speak(text, true);
         }, 400);
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
-    const guide = !started
-        ? 'Empieza por el Módulo 1. Son pasos cortitos y yo te los voy leyendo en voz alta.'
-        : recommended
-            ? `Vas en el ${recommended.title.split(':')[0]}. Toca “Continuar” y seguimos donde te quedaste.`
-            : '¡Completaste todo el camino! Puedes repasar el módulo que quieras.';
 
     // Estado de cada capítulo de un módulo.
     const chapterStates = (m) => {
@@ -172,14 +198,20 @@ const CoursePath = ({ modules, onStart }) => {
                                         </h2>
                                         <p className="mt-3 max-w-[38ch] text-lg text-on-brand">{m.subtitle}</p>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => onStart(m, resumeIndex(m))}
-                                        className="btn btn-primary btn-lg shrink-0 self-start md:self-center"
-                                    >
-                                        {ctaLabel}
-                                        <ArrowRight className="h-5 w-5" aria-hidden="true" />
-                                    </button>
+                                    <div className="flex shrink-0 flex-col items-start gap-2 self-start md:items-center md:self-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => onStart(m, resumeIndex(m))}
+                                            aria-label={`${ctaLabel}. Atajo: flecha derecha.`}
+                                            className="btn btn-primary btn-lg"
+                                        >
+                                            {ctaLabel}
+                                            <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                                        </button>
+                                        <p className="text-sm text-on-brand/80">
+                                            <span className="kbd">→</span> para ir donde te quedaste
+                                        </p>
+                                    </div>
                                 </div>
                             ) : (
                                 /* Módulo en tarjeta compacta */

@@ -11,6 +11,13 @@ const activeDotsOf = (char) => {
         : 'ninguno';
 };
 
+// Versión corta (ajuste "Narración breve"): solo dónde estás. En el primer paso
+// también dice el módulo; el contenido completo se oye tocando a Braulio.
+export const buildBriefNarration = (lesson, index, total, moduleName) => {
+    const where = index === 0 && moduleName ? `Estás en ${moduleName}. ` : '';
+    return `${where}Paso ${index + 1} de ${total}.${lesson.title ? ` ${lesson.title}.` : ''}`;
+};
+
 export const buildNarration = (lesson, index, total) => {
     const step = `Paso ${index + 1} de ${total}. `;
 
@@ -18,7 +25,12 @@ export const buildNarration = (lesson, index, total) => {
         case 'info':
             return `${step}${lesson.title}. ${lesson.content} ${lesson.highlight || ''}`;
         case 'vowel_learning':
-            return `${step}${lesson.title}. ${lesson.audioDesc} Pulsa el botón o la barra espaciadora para escuchar el ritmo Braille.`;
+            // Los controles (espaciadora, doble Shift) ya se explicaron una
+            // sola vez en el paso "Antes de empezar" del módulo — repetirlos
+            // en cada letra se sentía cansado a la quinta vez. `controlsHint`
+            // solo existe en la primera letra: ahí sí conviene recordarlo justo
+            // cuando toca usarlo, no solo en el paso intro de más arriba.
+            return `${step}${lesson.title}. ${lesson.audioDesc}${lesson.controlsHint ? ` ${lesson.controlsHint}` : ''}`;
         case 'check':
             return `${step}${lesson.question} ` +
                 `Opciones: ${lesson.options.map((o, i) => `${i + 1}: ${o}`).join('. ')}. ` +
@@ -34,10 +46,10 @@ export const buildNarration = (lesson, index, total) => {
                 `Pulsa V para Verdadero o F para Falso.`;
         case 'builder':
         case 'mini_drill':
-            return `${step}${lesson.title}. ${lesson.question} ` +
-                `Usa el teclado Braille: F es punto 1, D es punto 2, S es punto 3, ` +
-                `J es punto 4, K es punto 5, L es punto 6. ` +
-                `Espacio para escuchar el patrón que construiste. Enter para verificar.`;
+            // Mismo caso: los controles del teclado Braille ya se explicaron
+            // en "Antes de empezar", no hace falta repetirlos en cada ejercicio
+            // — salvo en el primero (ver `controlsHint` arriba).
+            return `${step}${lesson.title}. ${lesson.question}${lesson.controlsHint ? ` ${lesson.controlsHint}` : ''}`;
         case 'memory':
             return `${step}${lesson.title}. ${lesson.question}`;
         default:

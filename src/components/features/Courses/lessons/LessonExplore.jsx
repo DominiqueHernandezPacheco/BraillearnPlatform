@@ -18,10 +18,8 @@ const LessonExplore = ({ instruction }) => {
         next[idx] = !next[idx];
         setDots(next);
 
-        if (!isMuted) {
-            playNav(NOTES.DOT_TOGGLE);
-            speak(`Punto ${idx + 1} ${next[idx] ? 'activado' : 'desactivado'}`, true);
-        }
+        playNav(NOTES.DOT_TOGGLE); // ya decide solo si suena (ajuste de efectos de sonido)
+        if (!isMuted) speak(`Punto ${idx + 1} ${next[idx] ? 'activado' : 'desactivado'}`, true);
     };
 
     useBrailleKeyboard(toggleDot, true);

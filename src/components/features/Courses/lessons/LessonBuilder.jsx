@@ -3,13 +3,14 @@ import { Check } from 'lucide-react';
 import InteractiveBrailleCell from '../../../common/InteractiveBrailleCell';
 import useBrailleKeyboard from '../../../../hooks/useBrailleKeyboard';
 import useBrailleSound from '../../../../hooks/useBrailleSound';
+import useShiftDoubleTap from '../../../../hooks/useShiftDoubleTap';
 import { braillePatterns } from '../../../../constants/braillePatterns';
 import { useAudio } from '../../../../context/AudioContext';
 import { NOTES } from '../../../../constants/soundConfig';
 
 const LessonBuilder = ({ lesson, onVerify }) => {
     const [dots, setDots] = useState([false, false, false, false, false, false]);
-    const { playNav, playPattern } = useBrailleSound();
+    const { playNav, playPattern, playDotLegend } = useBrailleSound();
     const { isMuted, speak } = useAudio();
 
     // Resetea los puntos si cambia la lección
@@ -22,8 +23,8 @@ const LessonBuilder = ({ lesson, onVerify }) => {
         newDots[idx] = !newDots[idx];
         setDots(newDots);
 
+        playNav(NOTES.DOT_TOGGLE); // ya decide solo si suena (ajuste de efectos de sonido)
         if (!isMuted) {
-            playNav(NOTES.DOT_TOGGLE);
             const status = newDots[idx] ? 'activado' : 'desactivado';
             speak(`Punto ${idx + 1} ${status}`, true);
         }
@@ -48,6 +49,13 @@ const LessonBuilder = ({ lesson, onVerify }) => {
     useEffect(() => {
         const handleEnter = (e) => {
             if (e.key === 'Enter') {
+                // Si el foco está en un botón (p.ej. "Continuar", que aparece
+                // tras contestar), deja que el navegador lo active solo — si
+                // no, esto vuelve a verificar Y el navegador avanza de paso a
+                // la vez, y el "¡Correcto!" recién reiniciado se corta con la
+                // narración del siguiente paso.
+                if (document.activeElement?.tagName === 'BUTTON') return;
+
                 // Si el foco está en un punto de la celda (SVG), Enter ya fue
                 // manejado por InteractiveBrailleCell — no verificamos dos veces.
                 if (document.activeElement?.getAttribute('role') === 'button' &&
@@ -74,15 +82,18 @@ const LessonBuilder = ({ lesson, onVerify }) => {
             if (document.activeElement?.tagName === 'BUTTON') return;
 
             e.preventDefault();
-            if (!isMuted) {
-                const target = lesson.char || lesson.targetChar;
-                playPattern(dots, target);
-            }
+            // playPattern ya decide solo si suena (ajuste de efectos de sonido)
+            playPattern(dots, lesson.char || lesson.targetChar);
         };
         window.addEventListener('keydown', handleSpace);
         return () => window.removeEventListener('keydown', handleSpace);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dots, isMuted, lesson]);
+    }, [dots, lesson]);
+
+    // Atajo: doble toque rápido a Shift repite la explicación de los sonidos —
+    // mismo atajo que en la pantalla de la letra, para que sea consistente en
+    // toda la app.
+    useShiftDoubleTap(playDotLegend);
 
     return (
         <div className="flex flex-col gap-7">
@@ -100,7 +111,8 @@ const LessonBuilder = ({ lesson, onVerify }) => {
                     <span className="kbd">K</span> punto 5 · <span className="kbd">L</span> punto 6
                 </p>
                 <p>
-                    <span className="kbd">Espacio</span> escuchar tu patrón · <span className="kbd">Enter</span> verificar
+                    <span className="kbd">Espacio</span> escuchar tu patrón · <span className="kbd">Enter</span> verificar ·{' '}
+                    doble toque a <span className="kbd">Shift</span> cómo suenan los puntos
                 </p>
             </div>
 

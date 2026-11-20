@@ -28,16 +28,20 @@ const LessonPlayer = ({
     children,
 }) => {
     const continueRef = useRef(null);
-    const { isSpeaking } = useAudio() ?? {};
+    const retryRef = useRef(null);
+    const { isSpeaking, isMuted } = useAudio() ?? {};
     // La barra cuenta pasos ya superados: llega al 100 % solo al terminar el módulo,
     // (o al acertar el último ejercicio), no nada más entrar al último paso.
     const completed = step.index + (feedback?.status === 'correct' ? 1 : 0);
     const pct = Math.round((completed / step.total) * 100);
 
-    // Tras contestar, el foco pasa a "Continuar": quien usa teclado o lector
-    // de pantalla cae justo en la siguiente acción.
+    // Tras contestar, el foco pasa a la acción esperada: "Continuar" si acertó,
+    // pero "Intentar de nuevo" si falló — antes siempre iba a "Continuar", así
+    // que con el teclado (Enter/Espacio en el botón ya enfocado) una respuesta
+    // incorrecta saltaba de paso en vez de dejarte repetir.
     useEffect(() => {
-        if (feedback) continueRef.current?.focus();
+        if (!feedback) return;
+        (feedback.status === 'correct' ? continueRef : retryRef).current?.focus();
     }, [feedback]);
 
     const correct = feedback?.status === 'correct';
@@ -116,9 +120,14 @@ const LessonPlayer = ({
                 <div key={step.index} className="rise">{children}</div>
             </div>
 
-            {/* Lectura de la retroalimentación para lectores de pantalla */}
+            {/* Lectura de la retroalimentación para lectores de pantalla — solo si
+                Braulio está silenciado. Si no, esto se oye a la vez que Braulio
+                dice lo mismo: dos voces distintas (la de él y la del lector de
+                pantalla del sistema) leyendo el mismo texto una encima de otra. */}
             <div className="sr-only" role="status" aria-live="polite">
-                {feedback ? `${feedback.headline}${/[.!?]$/.test(feedback.headline) ? '' : '.'} ${feedback.message}` : ''}
+                {feedback && isMuted
+                    ? `${feedback.headline}${/[.!?]$/.test(feedback.headline) ? '' : '.'} ${feedback.message}`
+                    : ''}
             </div>
 
             {/* Barra inferior de acciones / hoja de retroalimentación */}
@@ -154,7 +163,12 @@ const LessonPlayer = ({
 
                                 <div className="flex shrink-0 gap-3">
                                     {!correct && (
-                                        <button type="button" className="btn btn-secondary flex-1 sm:flex-none" onClick={onRetry}>
+                                        <button
+                                            ref={retryRef}
+                                            type="button"
+                                            className="btn btn-secondary flex-1 sm:flex-none"
+                                            onClick={onRetry}
+                                        >
                                             <RotateCcw className="h-5 w-5" aria-hidden="true" />
                                             Intentar de nuevo
                                         </button>

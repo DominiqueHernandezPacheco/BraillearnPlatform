@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ArrowRight, RotateCcw } from 'lucide-react';
 import Braulio from '../../common/Braulio';
 import useBrailleSound from '../../../hooks/useBrailleSound';
@@ -7,7 +7,11 @@ import { generateRandomExercises } from '../../../utils/courseGenerator';
 import { useAudio } from '../../../context/AudioContext';
 import { NOTES } from '../../../constants/soundConfig';
 import { useProgress } from '../../../hooks/useProgress';
-import { buildNarration } from '../../../utils/lessonNarration';
+import { setActiveLesson, clearActiveLesson } from '../../../hooks/useActiveLesson';
+import { buildBriefNarration, buildNarration } from '../../../utils/lessonNarration';
+import { useAccessibility } from '../../../context/AccessibilityContext';
+import { track } from '../../../utils/telemetry';
+import useWaitUntilNotSpeaking from '../../../hooks/useWaitUntilNotSpeaking';
 import GuideNote from '../../common/GuideNote';
 
 import CoursePath from './CoursePath';
@@ -32,8 +36,10 @@ const scoreSentence = ({ correct, questions }) =>
 const moduleName = (title) => title.replace(/^Módulo \d+:\s*/, '');
 
 const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => {
-    const { playNav } = useBrailleSound();
+    const { playNav, playCorrect, playIncorrect } = useBrailleSound();
     const { isMuted, speak, stop } = useAudio();
+    const { briefNarration } = useAccessibility() ?? {};
+    const waitUntilNotSpeaking = useWaitUntilNotSpeaking();
     const { completedLessons, stepProgress, markLessonComplete, updateLastLesson, saveStep, clearSteps } = useProgress();
 
     const [activeModule, setActiveModule] = useState(null);
@@ -44,6 +50,8 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
 
     const headingRef = useRef(null);
     const answeredRef = useRef(new Set()); // pasos ya contestados (para contar el primer intento)
+    const attemptsRef = useRef(new Map()); // intentos por paso (para el registro de uso)
+    const stepShownAtRef = useRef(0);
     const skipAttemptRef = useRef(false);
     const skipTimerRef = useRef(null);
     const goNextRef = useRef(() => {});
@@ -51,6 +59,18 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
     const lessons = activeModule?.lessons ?? [];
     const lesson = lessons[stepIndex];
     const total = lessons.length;
+    const nextModule = activeModule ? COURSES_DATA.find((m) => m.id === activeModule.id + 1) : undefined;
+
+    const chapters = activeModule ? getChapterRanges(activeModule) : [];
+    const chapterIndex = activeModule ? chapterIndexOfStep(activeModule, stepIndex) : -1;
+    const chapterTotal = chapters.length;
+    const chapterTitle = chapterTotal > 1 ? chapters[chapterIndex]?.title : undefined;
+    // Memoizado con deps primitivas: si no, sería un objeto nuevo en cada
+    // render y el useEffect de setActiveLesson de abajo correría de más.
+    const chapter = useMemo(
+        () => (chapterTotal > 1 ? { index: chapterIndex, total: chapterTotal, title: chapterTitle } : null),
+        [chapterIndex, chapterTotal, chapterTitle],
+    );
 
     // ── ABRIR / SALIR ────────────────────────────────────────────────────────
     const openModule = (m, startIndex = 0) => {
@@ -58,6 +78,7 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
         const start = m.random ? 0 : Math.min(Math.max(startIndex, 0), mod.lessons.length - 1);
 
         answeredRef.current = new Set();
+        attemptsRef.current = new Map();
         setScore({ correct: 0, questions: 0 });
         setFinished(false);
         setFeedback(null);
@@ -104,6 +125,52 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
         if (isMuted) stop();
     }, [isMuted, stop]);
 
+    // Comparte lo que se está mostrando en Cursos ahora mismo (progreso de la
+    // lección, o la pantalla de "terminaste el módulo" con la opción de
+    // seguir) para que Braulio pueda contestar preguntas de contexto como
+    // "¿cuánto me falta?" o resolver "sigue con el siguiente módulo" cuando
+    // se lo piden aquí — ver hooks/useActiveLesson.js. Se borra al volver al
+    // camino de módulos.
+    useEffect(() => {
+        if (!activeModule) {
+            clearActiveLesson();
+            return undefined;
+        }
+        const moduleIndex = COURSES_DATA.findIndex((m) => m.id === activeModule.id);
+
+        if (finished) {
+            setActiveLesson({
+                kind: 'finished',
+                moduleTitle: moduleName(activeModule.title),
+                moduleIndex: moduleIndex >= 0 ? moduleIndex : 0,
+                moduleTotal: COURSES_DATA.length,
+                nextModuleId: nextModule?.id,
+                nextModuleTitle: nextModule ? moduleName(nextModule.title) : undefined,
+            });
+            return () => clearActiveLesson();
+        }
+
+        if (!lesson) {
+            clearActiveLesson();
+            return undefined;
+        }
+        setActiveLesson({
+            kind: 'lesson',
+            moduleTitle: moduleName(activeModule.title),
+            moduleIndex: moduleIndex >= 0 ? moduleIndex : 0,
+            moduleTotal: COURSES_DATA.length,
+            isRandom: !!activeModule.random,
+            chapterTitle: chapter?.title,
+            chapterIndex: chapter?.index,
+            chapterTotal: chapter?.total,
+            stepIndex,
+            stepTotal: total,
+            stepTitle: lesson.title,
+            stepType: lesson.type,
+        });
+        return () => clearActiveLesson();
+    }, [activeModule, finished, lesson, stepIndex, total, chapter, nextModule]);
+
     // ── PROGRESO ─────────────────────────────────────────────────────────────
     useEffect(() => {
         if (activeModule && !activeModule.random && !finished) saveStep(activeModule.id, stepIndex);
@@ -116,10 +183,18 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
 
     useEffect(() => {
         if (!activeModule || finished || !lesson) return;
+        stepShownAtRef.current = performance.now();
         window.scrollTo({ top: 0 });
         const focusTimer = setTimeout(() => headingRef.current?.focus({ preventScroll: true }), 100);
         if (isMuted) return () => clearTimeout(focusTimer);
-        const speakTimer = setTimeout(() => speak(buildNarration(lesson, stepIndex, total), true), 600);
+        // Si acabas de acertar/fallar, Braulio todavía puede estar diciendo el
+        // resultado ("¡Correcto!...") cuando llegas aquí — sin esto, la
+        // narración del paso nuevo lo cortaba a medias en vez de dejarlo terminar.
+        // Con "Narración breve" solo dice dónde estás (tocando a Braulio se oye completo).
+        const text = briefNarration
+            ? buildBriefNarration(lesson, stepIndex, total, moduleName(activeModule.title))
+            : buildNarration(lesson, stepIndex, total);
+        const speakTimer = setTimeout(() => waitUntilNotSpeaking(() => speak(text, true)), 600);
         return () => {
             clearTimeout(focusTimer);
             clearTimeout(speakTimer);
@@ -134,13 +209,17 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
         setFeedback(null);
         setFinished(true);
         window.scrollTo({ top: 0 });
-        if (!isMuted) {
-            playNav(NOTES.FINISH_1);
-            setTimeout(() => playNav(NOTES.FINISH_2), 150);
-            setTimeout(() => playNav(NOTES.FINISH_3), 300);
-        }
+        // playNav ya decide solo si suena (ajuste de efectos de sonido, aparte de la voz)
+        playNav(NOTES.FINISH_1);
+        setTimeout(() => playNav(NOTES.FINISH_2), 150);
+        setTimeout(() => playNav(NOTES.FINISH_3), 300);
+        track('module_done', { module: activeModule.id, correct: score.correct, questions: score.questions });
         const scoreText = score.questions > 0 ? ` ${scoreSentence(score)}` : '';
-        speak(`¡Terminaste el ${activeModule.title.split(':')[0]}! Has hecho un gran trabajo.${scoreText}`, true);
+        // Mismo caso: si el último ejercicio salió bien, deja que "¡Correcto!"
+        // termine antes de anunciar que se terminó el módulo.
+        waitUntilNotSpeaking(() => {
+            speak(`¡Terminaste el ${activeModule.title.split(':')[0]}! Has hecho un gran trabajo.${scoreText}`, true);
+        });
     };
 
     const goNext = () => {
@@ -200,6 +279,18 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
 
     // ── VERIFICACIÓN DE RESPUESTAS ───────────────────────────────────────────
     const handleVerification = (isCorrect, description, explanation = '') => {
+        if (lesson && activeModule) {
+            const attempt = (attemptsRef.current.get(lesson.id) ?? 0) + 1;
+            attemptsRef.current.set(lesson.id, attempt);
+            track('lesson_answer', {
+                module: activeModule.id,
+                step: stepIndex,
+                kind: lesson.type,
+                correct: isCorrect,
+                attempt,
+                ms: Math.round(performance.now() - stepShownAtRef.current),
+            });
+        }
         if (lesson && !answeredRef.current.has(lesson.id)) {
             answeredRef.current.add(lesson.id);
             setScore((s) => ({ questions: s.questions + 1, correct: s.correct + (isCorrect ? 1 : 0) }));
@@ -211,7 +302,7 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
         const message = [description, explanation].filter(Boolean).join(' ');
 
         setFeedback({ status: isCorrect ? 'correct' : 'incorrect', headline, message });
-        if (!isMuted) playNav(isCorrect ? NOTES.CORRECT : NOTES.INCORRECT);
+        isCorrect ? playCorrect() : playIncorrect();
         speak(`${headline}${/[.!?]$/.test(headline) ? '' : '.'} ${message}`, true);
     };
 
@@ -243,8 +334,8 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
                                 if (atStep === stepIndex) goNextRef.current();
                             }, 2000);
                         }}
-                        playSuccess={() => !isMuted && playNav(NOTES.CORRECT)}
-                        playError={() => !isMuted && playNav(NOTES.INCORRECT)}
+                        playSuccess={() => playCorrect()}
+                        playError={() => playIncorrect()}
                         speakText={speak}
                         onExit={exitLesson}
                     />
@@ -265,7 +356,6 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
 
     // ── MÓDULO TERMINADO ─────────────────────────────────────────────────────
     if (finished) {
-        const nextModule = COURSES_DATA.find((m) => m.id === activeModule.id + 1);
         return (
             <div className="page flex flex-col items-center gap-8 text-center">
                 <div className="pop mt-2" aria-hidden="true">
@@ -314,12 +404,6 @@ const CourseSection = ({ openModuleRequest, onRequestHandled, onOpenPanel }) => 
     }
 
     // ── LECCIÓN ACTIVA ───────────────────────────────────────────────────────
-    const chapters = getChapterRanges(activeModule);
-    const chapterIndex = chapterIndexOfStep(activeModule, stepIndex);
-    const chapter = chapters.length > 1
-        ? { index: chapterIndex, total: chapters.length, title: chapters[chapterIndex]?.title }
-        : null;
-
     return (
         <LessonPlayer
             title={lesson.title}

@@ -9,16 +9,60 @@
 
 const VOWELS = ['a', 'e', 'i', 'o', 'u'];
 
+// Un solo paso al principio del módulo explicando los controles — antes cada
+// letra repetía las mismas instrucciones (ver buildNarration en
+// utils/lessonNarration.js), lo cual se volvía cansado a la quinta vez.
+// Va dentro del capítulo de la letra A: si alguien la olvida, "Anterior" la
+// tiene a un paso de distancia y el botón de Braulio la repite.
+const INTRO_LESSON = {
+    id: '2-intro', chapter: 'a', type: 'info',
+    title: "Antes de empezar",
+    content: "En cada letra puedes escuchar su ritmo con la barra espaciadora. En los ejercicios de práctica, la formas con el teclado: F, D y S son los puntos 1, 2 y 3; J, K y L son el 4, 5 y 6. Cuando termines, Enter verifica tu patrón.",
+    highlight: "Espacio escucha, F-D-S-J-K-L construye, Enter verifica — y doble toque a Shift si quieres oír cómo suenan los puntos.",
+    iconType: "grip",
+};
+
 const VOWEL_LESSONS = [
-    { id: '2-a', type: 'vowel_learning', char: 'a', title: "Letra A", audioDesc: "Letra A. Punto uno.", visualDesc: "Punto superior izquierdo.", patternExp: "Punto 1.", rhythm: "Ta" },
-    { id: '2-a-drill', type: 'mini_drill', char: 'a', title: "Práctica: Letra A", question: "Forma la letra A." },
-    { id: '2-e', type: 'vowel_learning', char: 'e', title: "Letra E", audioDesc: "Letra E. Puntos uno y cinco.", visualDesc: "Diagonal bajando.", patternExp: "Puntos 1 y 5.", rhythm: "Ta... Ta" },
+    {
+        id: '2-a', type: 'vowel_learning', char: 'a', title: "Letra A",
+        audioDesc: "Letra A. Es la más sencilla de las cinco vocales: un solo punto, arriba a la izquierda. Con ella empieza el alfabeto Braille, igual que en el alfabeto normal.",
+        visualDesc: "El punto más simple: solo el de arriba a la izquierda.",
+        patternExp: "Punto 1.", rhythm: "Ta",
+        // Solo en la primera letra: el recordatorio de qué tecla usar justo
+        // cuando toca usarla, no solo en el paso intro de más arriba.
+        controlsHint: "Presiona la barra espaciadora para escucharlo, o el botón en pantalla.",
+    },
+    {
+        id: '2-a-drill', type: 'mini_drill', char: 'a', title: "Práctica: Letra A", question: "Forma la letra A.",
+        controlsHint: "Usa el teclado Braille: F, D y S son los puntos 1, 2 y 3; J, K y L son el 4, 5 y 6. Cuando termines, presiona Enter para verificar.",
+    },
+    {
+        id: '2-e', type: 'vowel_learning', char: 'e', title: "Letra E",
+        audioDesc: "Letra E. Dos puntos en diagonal: el de arriba a la izquierda, y otro a la mitad pero del lado derecho. Recuerda esta pareja: la I usa los mismos dos puntos, nada más que del lado contrario.",
+        visualDesc: "Dos puntos en diagonal: uno arriba a la izquierda, otro a la mitad a la derecha.",
+        patternExp: "Puntos 1 y 5.", rhythm: "Ta... Ta",
+    },
     { id: '2-e-drill', type: 'mini_drill', char: 'e', title: "Práctica: Letra E", question: "Forma la letra E." },
-    { id: '2-i', type: 'vowel_learning', char: 'i', title: "Letra I", audioDesc: "Letra I. Puntos dos y cuatro.", visualDesc: "Diagonal subiendo.", patternExp: "Puntos 2 y 4.", rhythm: "Ta... Ta" },
+    {
+        id: '2-i', type: 'vowel_learning', char: 'i', title: "Letra I",
+        audioDesc: "Letra I. También son dos puntos en diagonal, pero invertidos respecto a la E: aquí el de arriba está a la derecha, y el de la mitad a la izquierda.",
+        visualDesc: "Dos puntos en diagonal, al revés que la E.",
+        patternExp: "Puntos 2 y 4.", rhythm: "Ta... Ta",
+    },
     { id: '2-i-drill', type: 'mini_drill', char: 'i', title: "Práctica: Letra I", question: "Forma la letra I." },
-    { id: '2-o', type: 'vowel_learning', char: 'o', title: "Letra O", audioDesc: "Letra O. Puntos uno, tres y cinco.", visualDesc: "Triángulo izquierdo.", patternExp: "Puntos 1, 3 y 5.", rhythm: "Ta-Ta... Ta" },
+    {
+        id: '2-o', type: 'vowel_learning', char: 'o', title: "Letra O",
+        audioDesc: "Letra O. Toma la E que ya conoces, arriba a la izquierda y a la mitad a la derecha, y agrégale un punto más abajo a la izquierda. Tres puntos en total.",
+        visualDesc: "Los dos puntos de la izquierda, arriba y abajo, más uno a la mitad derecha.",
+        patternExp: "Puntos 1, 3 y 5.", rhythm: "Ta-Ta... Ta",
+    },
     { id: '2-o-drill', type: 'mini_drill', char: 'o', title: "Práctica: Letra O", question: "Forma la letra O." },
-    { id: '2-u', type: 'vowel_learning', char: 'u', title: "Letra U", audioDesc: "Letra U. Puntos uno, tres y seis.", visualDesc: "Puntos extremos.", patternExp: "Puntos 1, 3 y 6.", rhythm: "Ta-Ta... ... Ta" },
+    {
+        id: '2-u', type: 'vowel_learning', char: 'u', title: "Letra U",
+        audioDesc: "Letra U. Comparte con la O los dos puntos de la izquierda, arriba y abajo. La diferencia está en el punto derecho: en la O va a la mitad, en la U va hasta abajo.",
+        visualDesc: "Los mismos dos puntos de la izquierda que la O, pero el de la derecha va hasta abajo.",
+        patternExp: "Puntos 1, 3 y 6.", rhythm: "Ta-Ta... ... Ta",
+    },
     { id: '2-u-drill', type: 'mini_drill', char: 'u', title: "Práctica: Letra U", question: "Forma la letra U." },
 ];
 
@@ -131,7 +175,7 @@ export const COURSES_DATA = [
             title: `La letra ${v.toUpperCase()}`,
             summary: "Aprende su patrón y forma la letra.",
         })),
-        lessons: VOWEL_LESSONS.map((lesson) => ({ ...lesson, chapter: lesson.char })),
+        lessons: [INTRO_LESSON, ...VOWEL_LESSONS.map((lesson) => ({ ...lesson, chapter: lesson.char }))],
     },
     {
         id: 3,

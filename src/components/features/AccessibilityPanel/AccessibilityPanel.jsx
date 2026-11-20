@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { Accessibility, X, Type, Volume2, Eye, LifeBuoy, RotateCcw, Check, CirclePlay } from 'lucide-react';
+import { Accessibility, X, Type, Volume2, BellRing, Eye, LifeBuoy, RotateCcw, Check, CirclePlay, Activity, Download, Trash2 } from 'lucide-react';
 import { useAccessibility } from '../../../context/AccessibilityContext';
 import { useAudio } from '../../../context/AudioContext';
 import { useUser } from '../../../context/UserContext';
+import { clearTelemetry, exportTelemetry, setTelemetryEnabled, useTelemetry } from '../../../utils/telemetry';
 
 // ── Subcomponente: encabezado de sección ──────────────────────────────────────
 const SectionHeading = ({ id, icon, children }) => (
@@ -86,6 +87,8 @@ const AccessibilityPanel = ({ isOpen, onClose }) => {
         fontScale, setFontScale,
         reduceMotion, setReduceMotion,
         highContrast, setHighContrast,
+        soundEffects, setSoundEffects,
+        briefNarration, setBriefNarration,
         resetAll,
     } = useAccessibility();
 
@@ -97,6 +100,7 @@ const AccessibilityPanel = ({ isOpen, onClose }) => {
     } = useAudio();
 
     const { resetOnboarding } = useUser();
+    const usage = useTelemetry();
 
     // Foco automático al primer elemento cuando se abre
     const closeButtonRef = useRef(null);
@@ -197,6 +201,13 @@ const AccessibilityPanel = ({ isOpen, onClose }) => {
                                 checked={!isMuted}
                                 onChange={(on) => { if (on === isMuted) toggleMute(); }}
                             />
+                            <ToggleRow
+                                id="toggle-brief-narration"
+                                label="Narración breve"
+                                description="Al entrar a una pantalla o a un paso, Braulio solo dice dónde estás. Toca a Braulio en la lección para oír el paso completo"
+                                checked={briefNarration}
+                                onChange={setBriefNarration}
+                            />
                             <OptionRow
                                 label="Velocidad de la voz"
                                 options={rateOptions}
@@ -229,6 +240,20 @@ const AccessibilityPanel = ({ isOpen, onClose }) => {
 
                     <hr className="border-t-2 border-line" />
 
+                    {/* ── Sonido ── */}
+                    <section aria-labelledby="a11y-sound-heading">
+                        <SectionHeading id="a11y-sound-heading" icon={<BellRing className="h-4 w-4" aria-hidden="true" />}>Sonido</SectionHeading>
+                        <ToggleRow
+                            id="toggle-sound-effects"
+                            label="Efectos de sonido"
+                            description="Aciertos, errores y tap de los botones — aparte de la voz de Braulio"
+                            checked={soundEffects}
+                            onChange={setSoundEffects}
+                        />
+                    </section>
+
+                    <hr className="border-t-2 border-line" />
+
                     {/* ── Visual ── */}
                     <section aria-labelledby="a11y-visual-heading">
                         <SectionHeading id="a11y-visual-heading" icon={<Eye className="h-4 w-4" aria-hidden="true" />}>Visual</SectionHeading>
@@ -247,6 +272,45 @@ const AccessibilityPanel = ({ isOpen, onClose }) => {
                                 checked={reduceMotion}
                                 onChange={setReduceMotion}
                             />
+                        </div>
+                    </section>
+
+                    <hr className="border-t-2 border-line" />
+
+                    {/* ── Datos de uso (anónimos, solo en este dispositivo) ── */}
+                    <section aria-labelledby="a11y-usage-heading">
+                        <SectionHeading id="a11y-usage-heading" icon={<Activity className="h-4 w-4" aria-hidden="true" />}>Datos de uso</SectionHeading>
+                        <div className="space-y-4">
+                            <ToggleRow
+                                id="toggle-usage-data"
+                                label="Ayudar a mejorar"
+                                description="Guarda solo tiempos y aciertos en este dispositivo, sin nombres, textos ni audio. No se envía nada a internet."
+                                checked={usage.enabled}
+                                onChange={setTelemetryEnabled}
+                            />
+                            <p className="text-sm font-bold text-ink-soft" role="status">
+                                {usage.count === 0 ? 'Todavía no hay datos guardados.' : `${usage.count} registros guardados.`}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={exportTelemetry}
+                                    disabled={usage.count === 0}
+                                    className="btn btn-secondary btn-sm"
+                                >
+                                    <Download className="h-4 w-4 shrink-0" aria-hidden="true" />
+                                    Exportar datos
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={clearTelemetry}
+                                    disabled={usage.count === 0}
+                                    className="btn btn-secondary btn-sm"
+                                >
+                                    <Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                                    Borrar datos
+                                </button>
+                            </div>
                         </div>
                     </section>
 

@@ -7,6 +7,7 @@ import { braillePatterns } from '../../../constants/braillePatterns';
 import { textToBrailleCells } from '../../../utils/textHelpers';
 import { brailleService } from '../../../utils/brailleService';
 import { useAudio } from '../../../context/AudioContext';
+import { useAccessibility } from '../../../context/AccessibilityContext';
 
 const DISPLAY_CELLS = 12;
 const STORAGE_KEY = 'braillearn_messages';
@@ -77,6 +78,7 @@ const BraulioBubble = ({ mood = 'idle', children, tone = 'normal' }) => (
 
 const MessagesSection = () => {
     const { speak } = useAudio();
+    const { briefNarration } = useAccessibility() ?? {};
     const [text, setText] = useState('');
     const [status, setStatus] = useState({ state: 'idle', message: '' }); // idle | sending | sent | error
     const [history, setHistory] = useState(loadHistory);
@@ -93,6 +95,20 @@ const MessagesSection = () => {
 
     const slots = Array.from({ length: DISPLAY_CELLS }, (_, i) => cells[i] ?? { char: ' ', dots: BLANK });
     const thread = [...history].reverse(); // del más antiguo al más reciente, como en un chat
+
+    // Al entrar, Braulio dice dónde estás (corto si se eligió "Narración breve").
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            speak(
+                briefNarration
+                    ? 'Estás en Mensajes.'
+                    : 'Estás en Mensajes. Escribe un mensaje corto y lo mando al display, para leerlo con los dedos.',
+                true,
+            );
+        }, 400);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // El chat siempre muestra lo último: mensajes nuevos, avisos y el borrador.
     useEffect(() => {
@@ -112,8 +128,12 @@ const MessagesSection = () => {
 
         setLastAttempt(toSend);
         setStatus({ state: 'sending', message: 'Enviando al display…' });
+        // El display tarda en formar el mensaje: si pasa de unos segundos, Braulio avisa
+        // que sigue en eso en vez de dejar puro silencio.
+        const slowTimer = setTimeout(() => speak('Sigo enviando. El display está formando el mensaje.', true), 4000);
         // brailleService devuelve undefined cuando la petición falla
         const result = await brailleService.sendText(toSend);
+        clearTimeout(slowTimer);
 
         if (result === undefined) {
             const errorMessage = 'No se pudo enviar. Revisa la conexión a internet y que el display esté encendido; luego inténtalo de nuevo.';

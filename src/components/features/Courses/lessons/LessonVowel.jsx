@@ -3,12 +3,15 @@ import { Volume2 } from 'lucide-react';
 import { braillePatterns } from '../../../../constants/braillePatterns';
 import TactileCell from '../../../common/TactileCell';
 import useBrailleSound from '../../../../hooks/useBrailleSound';
-import { useAudio } from '../../../../context/AudioContext';
+import useShiftDoubleTap from '../../../../hooks/useShiftDoubleTap';
 import { brailleService } from '../../../../utils/brailleService';
+import { useAccessibility } from '../../../../context/AccessibilityContext';
+
+const DOT_LEGEND_SEEN_KEY = 'braillearn_dot_legend_seen';
 
 const LessonVowel = ({ char, visualDesc, patternExp }) => {
-    const { playPattern } = useBrailleSound();
-    const { isMuted } = useAudio();
+    const { playPattern, playDotLegend } = useBrailleSound();
+    const { briefNarration } = useAccessibility() ?? {};
     const dots = braillePatterns[char];
 
     // Envía la letra al display físico automáticamente
@@ -20,11 +23,19 @@ const LessonVowel = ({ char, visualDesc, patternExp }) => {
         }
     }, [char]);
 
-    const play = () => {
-        if (!isMuted) {
-            playPattern(dots, char);
-        }
-    };
+    // playPattern ya decide solo si suena (ajuste de efectos de sonido)
+    const play = () => playPattern(dots, char);
+
+    // La primerísima vez que alguien ve una letra, antes del patrón completo
+    // le enseñamos a distinguir los dos sonidos base (punto arriba/abajo) —
+    // solo una vez en la vida de la app, para no repetirlo en cada letra. Con
+    // "Narración breve" no se dice sola (queda el botón y el doble Shift).
+    useEffect(() => {
+        if (briefNarration || localStorage.getItem(DOT_LEGEND_SEEN_KEY)) return;
+        localStorage.setItem(DOT_LEGEND_SEEN_KEY, '1');
+        playDotLegend().then(() => play());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Atajo: barra espaciadora reproduce el ritmo (salvo que el foco esté en un botón/campo)
     useEffect(() => {
@@ -38,7 +49,13 @@ const LessonVowel = ({ char, visualDesc, patternExp }) => {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [char, isMuted]);
+    }, [char]);
+
+    // Atajo: doble toque rápido a Shift repite la explicación de los sonidos —
+    // sin esto alguien que no ve la pantalla no tiene forma de volver a
+    // escucharla por su cuenta (y a diferencia de una tecla de símbolo, Shift
+    // se encuentra al tacto sin necesitar ver el teclado).
+    useShiftDoubleTap(playDotLegend);
 
     return (
         <div className="flex flex-col gap-6">
@@ -70,8 +87,17 @@ const LessonVowel = ({ char, visualDesc, patternExp }) => {
                     Escuchar el ritmo
                 </button>
                 <p className="text-lg text-ink-soft">
-                    <span className="kbd">Espacio</span> para reproducir
+                    <span className="kbd">Espacio</span> para reproducir · doble toque a{' '}
+                    <span className="kbd">Shift</span> cómo suenan los puntos
                 </p>
+                <button
+                    type="button"
+                    onClick={playDotLegend}
+                    className="text-lg font-semibold text-ink-soft underline underline-offset-2"
+                    aria-label="Escuchar cómo suena un punto arriba y uno abajo. Atajo: doble toque rápido a la tecla Shift."
+                >
+                    ¿Cómo suenan los puntos?
+                </button>
             </div>
         </div>
     );

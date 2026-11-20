@@ -6,7 +6,11 @@ import { shuffleArray } from '../../../utils/arrayHelpers';
 // NUEVO: Importamos el servicio de conexión
 import { brailleService } from '../../../utils/brailleService'; 
 
-const COLS = 4;
+// 10 cartas (5 pares de vocales) ÷ 5 columnas = 2 filas parejas, del mismo
+// tamaño de carta que antes. Con 4 columnas la última fila quedaba a la
+// mitad (solo 2 cartas) — desorienta al navegar con flechas y se siente
+// "chueco" al verlo.
+const COLS = 5;
 
 const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) => {
     const [cards, setCards]     = useState([]);
@@ -184,7 +188,7 @@ const MemoryGame = ({ onComplete, playSuccess, playError, speakText, onExit }) =
             </p>
 
             <div
-                className="grid grid-cols-4 gap-3 sm:gap-4 w-full max-w-lg mx-auto px-1"
+                className="grid grid-cols-5 gap-3 sm:gap-4 w-full max-w-lg mx-auto px-1"
                 role="grid"
                 aria-label={`Tablero de Memorama. ${matchedPairs} de ${totalPairs.current} pares encontrados.`}
             >
