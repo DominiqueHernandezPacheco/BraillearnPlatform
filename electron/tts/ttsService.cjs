@@ -158,7 +158,30 @@ async function synthesize(text, voiceId, rate = 1, { quality = false } = {}) {
             console.warn('[TTS] ElevenLabs no disponible, uso Piper:', eleven.redact(err.message));
         }
     }
+    // En un servidor público no se usa Piper (descarga ~75 MB y pesa mucho): sin la
+    // voz de la nube, el navegador responde con la suya.
+    if (process.env.DISABLE_PIPER === '1') throw new Error('La voz local está desactivada en este servidor.');
     return { audio: await piper.synthesize(clean, voiceId, rate), mime: 'audio/wav' };
+}
+
+// Ruta del audio ya guardado de una frase (o null si no está). Lo usa el
+// servidor web para no generar voz nueva a petición de cualquiera cuando es
+// público, y scripts/export-tts-cache.mjs para llevar las voces a la imagen.
+function findCached(text, rate = 1) {
+    const clean = String(text || '').trim();
+    const voiceId = process.env.ELEVENLABS_VOICE_ID;
+    for (const m of [qualityModel(), liveModel()]) {
+        const file = cacheFile(clean, voiceId, rate, m);
+        if (fs.existsSync(file)) return file;
+    }
+    return null;
+}
+
+// ¿Esta frase ya está guardada (se dirá sin gastar créditos)? Sin ElevenLabs no
+// hay gasto, así que cuenta como "guardada".
+function isCached(text, rate = 1) {
+    if (provider() !== 'elevenlabs') return true;
+    return findCached(text, rate) !== null;
 }
 
 function status() {
@@ -172,4 +195,4 @@ function status() {
     };
 }
 
-module.exports = { synthesize, status, provider };
+module.exports = { synthesize, status, provider, isCached, findCached };
